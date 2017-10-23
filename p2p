@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import sys
 from tracker import start_tracker
+from peer import start_peer
 from args_parser import parse_args
 
 if __name__ == "__main__":
@@ -10,5 +11,5 @@ if __name__ == "__main__":
     print(settings)
     if settings["role"] == "tracker":
         start_tracker(settings)
-    else:
-        print("Not yet implemented")
+    elif settings["role"] == "peer":
+        start_peer(settings)
