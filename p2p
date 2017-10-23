@@ -1,0 +1,9 @@
+#!/usr/bin/python
+import sys
+from args_parser import parse_args
+
+if __name__ == "__main__":
+    # Have fun
+    print("Starting P2P Application...")
+    settings = parse_args(sys.argv)
+    print(settings)
