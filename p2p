@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys
 from tracker import Tracker
-from peer import start_peer
+from peer import Peer
 from args_parser import parse_args
 
 if __name__ == "__main__":
@@ -13,4 +13,5 @@ if __name__ == "__main__":
         tracker = Tracker(settings)
         tracker.start_tracker()
     elif settings["role"] == "peer":
-        start_peer(settings)
+        peer = Peer(settings)
+        peer.start_peer()
