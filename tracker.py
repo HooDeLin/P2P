@@ -55,6 +55,9 @@ class Tracker:
             peer_key = self.create_join_entry(msg, addr)
             self.create_file_entries(peer_key, msg)
             return self.create_join_reply_message(peer_key)
+        elif msg["msg_type"] == "HEARTBEAT":
+            peer_key = msg["peer_id"]
+            return self.create_join_reply_message(peer_key)
 
     def start_tracker(self):
         while 1:

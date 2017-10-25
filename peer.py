@@ -36,8 +36,17 @@ class Peer:
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_address = (self.tracker_address, self.tracker_port)
         self.listening_socket.connect(server_address)
-        self.listening_socket.sendall("{ \"msg_type\": \"HEARTBEAT\", \"port\": 2345, \"files\": [\"test.txt\", \"test1.txt\"]}")
+        try:
+            message = {}
+            message["msg_type"] = "HEARTBEAT"
+            message["peer_id"] = self.peer_id
+            self.listening_socket.sendall(json.dumps(message))
+            print("Sent heartbeat message")
+        except:
+            print("Unable to send heartbeat message")
+        finally:
+            self.listening_socket.close()
 
     def start_peer(self):
         self.register_as_peer()
-        # self.heartbeat = PeerHeartbeat(5, self.heartbeat_func)
+        self.heartbeat = PeerHeartbeat(5, self.heartbeat_func)
