@@ -2,6 +2,8 @@ import socket
 import threading
 import sys
 import json
+import os
+
 from peer_heartbeat import PeerHeartbeat
 
 class Peer:
@@ -10,7 +12,18 @@ class Peer:
         self.tracker_address = settings["tracker-address"]
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
+        self.directory = settings["peer-directory"]
         print ("Socket created")
+
+    def get_directory_files(self):
+        # Returns a list of files in self.directory
+        files = []
+        for pack in os.walk(self.directory):
+            for filename in pack[2]:
+                full_path = os.path.join(self.directory, filename)
+                if os.path.isfile(full_path):
+                    files.append(filename)
+        return files
 
     def register_as_peer(self):
         server_address = (self.tracker_address, self.tracker_port)
@@ -19,7 +32,7 @@ class Peer:
             message = {}
             message["msg_type"] = "JOIN"
             message["port"] = self.port
-            message["files"] = ["test.txt"]
+            message["files"] = self.get_directory_files()
             self.listening_socket.sendall(json.dumps(message))
             data = self.listening_socket.recv(1024)
             received_data = json.loads(data)
