@@ -49,6 +49,7 @@ class Tracker:
         print(data)
         msg = json.loads(data)
         if "msg_type" not in msg:
+            print("Not yet implemented")
             return
         if msg["msg_type"] == "JOIN":
             peer_key = self.create_join_entry(msg, addr)
