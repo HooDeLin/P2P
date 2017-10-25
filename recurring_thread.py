@@ -1,6 +1,6 @@
 from threading import Timer
 
-class PeerHeartbeat(object):
+class RecurringThread(object):
     def __init__(self, interval, function, *args, **kwargs):
         self._timer = None
         self.interval = interval

@@ -8,7 +8,7 @@ if __name__ == "__main__":
     # Have fun
     print("Starting P2P Application...")
     settings = parse_args(sys.argv)
-    print(settings)
+    print("These are your settings: " + str(settings))
     if settings["role"] == "tracker":
         tracker = Tracker(settings)
         tracker.start_tracker()
