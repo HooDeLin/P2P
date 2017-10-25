@@ -3,14 +3,16 @@ import json
 import sys
 import random
 import hashlib
+from sets import Set
 from recurring_thread import RecurringThread
 
 class Tracker:
 
     def __init__(self, settings):
-        self.peer_table = {}
-        self.file_table = {}
-        self.peer_heartbeat_tracker = {}
+        self.peer_set = Set()
+        self.file_details = {}
+        self.file_owners = {}
+        self.chunk_owners = {}
         self.port = settings["port"]
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print ("Socket created")
@@ -23,86 +25,110 @@ class Tracker:
         self.listening_socket.listen(10)
         print 'Socket now listening'
 
-    def update_offline_peer(self, peer_key):
-        print(peer_key + " is offline, removing its trace")
-        self.peer_table.pop(peer_key)
-        file_that_has_no_peers = []
-        for file in self.file_table:
-            if peer_key in self.file_table[file]:
-                if len(self.file_table[file]) == 1:
-                    file_that_has_no_peers.append(file)
-                self.file_table[file].remove(peer_key)
-        for lonely_file in file_that_has_no_peers:
-            self.file_table.pop(lonely_file)
-        self.peer_heartbeat_tracker[peer_key].stop()
+    def create_not_yet_implemented_reply(self):
+        msg = {}
+        msg["message_type"] = "NOT_YET_IMPLEMENTED"
+        return json.dumps(msg)
 
-    def create_join_entry(self, msg, addr):
-        print(addr[0] + ":" + str(msg["port"]))
-        peer_key = hashlib.md5(addr[0] + ":" + str(msg["port"])).hexdigest()
-        self.peer_table[peer_key] = {"address": addr[0], "port": msg["port"]}
-        return peer_key
+    def create_ack_reply(self):
+        msg = {}
+        msg["message_type"] = "ACK"
+        return json.dumps(msg)
 
-    def create_file_entries(self, peer_key, msg):
-        for filename in msg["files"]:
-            file_key = hashlib.md5(filename).hexdigest()
-            if file_key in self.file_table.keys() and peer_key not in self.file_table[file_key]:
-                self.file_table[file_key].append(peer_key)
+    def create_list_of_files_reply(self):
+        msg = {}
+        msg["message_type"] = "QUERY_LIST_OF_FILES_REPLY"
+        msg["files"] = list(set(self.chunk_owners.keys() + self.file_details.keys()))
+        return json.dumps(msg)
+
+    def handle_inform_and_update_message(self, msg, addr):
+        peer_id = addr[0] + ":" + str(msg["source_port"])
+        self.peer_set.add(peer_id)
+        for peer_files in msg["files"]:
+            file_name = peer_files["filename"]
+            # Add files into file details if this is the first time appearing
+            if file_name not in self.file_details:
+                file_checksum = peer_files["filechecksum"]
+                num_of_chunks = peer_files["num_of_chunks"]
+                self.file_details[file_name] = {}
+                self.file_details[file_name]["filechecksum"] = file_checksum
+                self.file_details[file_name]["num_of_chunks"] = num_of_chunks
+            # Add the owner to file owners
+            if file_name not in self.file_owners:
+                self.file_owners[file_name] = [peer_id]
+            elif file_name not in self.file_owners[file_name]:
+                self.file_owners[file_name].append(peer_id)
+
+        for peer_file_chunks in msg["chunks"]:
+            file_name = peer_file_chunks["filename"]
+            if file_name not in self.chunk_owners:
+                self.chunk_owners[file_name] = {peer_id: peer_file_chunks["chunks"]}
+            elif peer_id not in self.chunk_owners[file_name]:
+                self.chunk_owners[file_name][peer_id] = peer_file_chunks["chunks"]
             else:
-                self.file_table[file_key] = [peer_key]
+                updated_file_chunk_owns = list(set(self.chunk_owners[file_name][peer_id] + peer_file_chunks["chunks"]))
+                self.chunk_owners[file_name][peer_id] = updated_file_chunk_owns
+        return
 
-    def get_neighboring_peers(self, peer_key):
-        neighboring_peers = []
-        for key, value in self.peer_table.iteritems():
-            if key != peer_key:
-                neighboring_peers.append(value)
-        return neighboring_peers
-
-    def create_join_reply_message(self, peer_key):
-        msg = {}
-        msg["msg_type"] = "JOIN_REPLY"
-        msg["peer_id"] = peer_key
-        msg["neighboring_peers"] = self.get_neighboring_peers(peer_key)
-        msg["files"] = self.file_table
+    def create_file_reply(self, file_name):
+        checksum = self.file_details[file_name]["filechecksum"]
+        num_of_chunks = self.file_details[file_name]["num_of_chunks"]
+        owners = self.file_owners[file_name]
+        chunks = {}
+        if file_name in self.chunk_owners:
+            chunks = self.chunk_owners[file_name]
+        msg = {"message_type": "QUERY_FILE_REPLY",
+               "filename": file_name,
+               "checksum": checksum,
+               "owners": owners,
+               "chunks": chunks,
+               "num_of_chunks": num_of_chunks,
+        }
         return json.dumps(msg)
 
-    def create_heartbeat_reply_message(self, peer_key):
-        msg = {}
-        msg["msg_type"] = "HEARTBEAT_REPLY"
-        msg["peer_id"] = peer_key
-        msg["neighboring_peers"] = self.get_neighboring_peers(peer_key)
-        msg["files"] = self.file_table
-        return json.dumps(msg)
+    def handle_exit_message(self, msg, addr):
+        peer_id = addr[0] + ":" + str(msg["source_port"])
+        self.peer_set.discard(peer_id)
+        file_that_has_peer_as_solo_owners = []
+        file_owner_that_needs_to_be_removed = []
+        for file_name in self.file_owners:
+            if len(self.file_owners[file_name]) == 1 and self.file_owners[file_name][0] == peer_id:
+                file_that_has_peer_as_solo_owners.append(file_name)
+                file_owner_that_needs_to_be_removed.append(file_name)
+            elif peer_id in self.file_owners[file_name]:
+                file_owner_that_needs_to_be_removed.append(file_name)
+        for file_name in file_owner_that_needs_to_be_removed:
+            self.file_owners.pop(file_name)
+        for file_name in file_that_has_peer_as_solo_owners:
+            if file_name in self.file_details:
+                self.file_details.pop(file_name)
+        return
 
-    def parse_message(self, data, addr):
+    def parse_msg(self, data, addr):
         msg = json.loads(data)
-        if "msg_type" not in msg:
+        if "message_type" not in msg:
             print("Not yet implemented")
-            return
-        if msg["msg_type"] == "JOIN":
-            peer_key = self.create_join_entry(msg, addr)
-            self.create_file_entries(peer_key, msg)
-            self.peer_heartbeat_tracker[peer_key] = RecurringThread(7, self.update_offline_peer, peer_key)
-            return self.create_join_reply_message(peer_key)
-        elif msg["msg_type"] == "HEARTBEAT":
-            peer_key = msg["peer_id"]
-            self.peer_heartbeat_tracker[peer_key].stop()
-            self.peer_heartbeat_tracker[peer_key] = RecurringThread(7, self.update_offline_peer, peer_key)
-            return self.create_heartbeat_reply_message(peer_key)
+            return self.create_not_yet_implemented_reply()
+        if msg["message_type"] == "INFORM_AND_UPDATE":
+            self.handle_inform_and_update_message(msg, addr)
+            return self.create_ack_reply()
+        elif msg["message_type"] == "QUERY_LIST_OF_FILES":
+            return self.create_list_of_files_reply()
+        elif msg["message_type"] == "QUERY_FILE":
+            return self.create_file_reply(msg["filename"])
+        elif msg["message_type"] == "EXIT":
+            self.handle_exit_message(msg, addr)
+            print(self.chunk_owners)
+            return self.create_ack_reply()
 
     def start_tracker(self):
         while 1:
             conn, addr = self.listening_socket.accept()
-            # try:
             data = conn.recv(1024)
             print 'Received data: ' + data
             if data:
-                return_data = self.parse_message(data, addr)
+                return_data = self.parse_msg(data, addr)
                 print 'Returning data: ' + return_data
                 conn.sendall(return_data)
-            # print self.peer_table
-            # print self.file_table
             conn.close()
-            # except:
-            #     break
-            # print 'Connected with ' + addr[0] + ':' + str(addr[1])
         self.listening_socket.close()
