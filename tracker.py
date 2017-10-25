@@ -62,6 +62,7 @@ class Tracker:
         msg["msg_type"] = "JOIN_REPLY"
         msg["peer_id"] = peer_key
         msg["neighboring_peers"] = self.get_neighboring_peers(peer_key)
+        msg["files"] = self.file_table
         return json.dumps(msg)
 
     def create_heartbeat_reply_message(self, peer_key):
@@ -69,6 +70,7 @@ class Tracker:
         msg["msg_type"] = "HEARTBEAT_REPLY"
         msg["peer_id"] = peer_key
         msg["neighboring_peers"] = self.get_neighboring_peers(peer_key)
+        msg["files"] = self.file_table
         return json.dumps(msg)
 
     def parse_message(self, data, addr):
