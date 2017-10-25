@@ -4,7 +4,7 @@ import sys
 import json
 import os
 
-from peer_heartbeat import PeerHeartbeat
+from recurring_thread import RecurringThread
 
 class Peer:
     def __init__(self, settings):
@@ -62,4 +62,4 @@ class Peer:
 
     def start_peer(self):
         self.register_as_peer()
-        self.heartbeat = PeerHeartbeat(5, self.heartbeat_func)
+        self.heartbeat = RecurringThread(5, self.heartbeat_func)
