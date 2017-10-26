@@ -98,26 +98,74 @@ class Peer(Runner):
         info["message_type"] = "INFORM_AND_UPDATE"
         return info
 
-    def register_as_peer(self):
+    def update_tracker(self, success_msg, failure_msg, should_connect=False,
+                       should_exit=False):
         """
         Informs the Tracker of the files and chunks that you are sharing
         Does this by opening a socket to the Tracker and sending the data
+
+        Note: function is not used on its own. Used by two other methods by
+        changing the arguments
         """
         server_address = (self.tracker_address, self.tracker_port)
         # Important to call this before trying to create the message to send
         self.process_dir_listing()
-        self.listening_socket.connect(server_address)
+        if should_connect:
+            self.listening_socket.connect(server_address)
         try:
             message = self.create_info_for_tracker()
             self.listening_socket.sendall(json.dumps(message))
             data = self.listening_socket.recv(1024)
             received_data = json.loads(data)
+            print(success_msg)
         except:
-            print("Unable to register as peer")
-            exit()
-        finally:
-            print("Registered as peer")
-            self.listening_socket.close()
+            print(failure_msg)
+            if should_exit:
+                self.listening_socket.close()
+                exit()
+
+    def register_as_peer(self):
+        # First run of self.update_tracker
+        self.update_tracker(
+            success_msg="Successfully registered as Peer",
+            failure_msg="Unable to register as Peer. Exiting...",
+            should_connect=True,
+            should_exit=True
+        )
+
+    def get_available_files(self):
+        """
+        Asks the Tracker for a list of all files in this network
+        """
+        return 0
+
+    def get_peers_with_file(self, checksum):
+        """
+        Asks the Tracker for a list of peers containing a file with this checksum
+        """
+        return 0
+
+    def download_file(self, checksum):
+        """
+        Downloads the file with this checksum from other Peers in the network
+        """
+        return 0
+
+    def update_tracker_new_files(self):
+        """
+        Informs the Tracker of the additional files and chunks that you are sharing
+        """
+        self.update_tracker(
+            success_msg="Update successful",
+            failure_msg="Update unsuccessful"
+        )
+        return 0
+
+    def exit_network(self):
+        """
+        Tells the Tracker that you are exiting the network
+        """
+        return 0
 
     def start_tui(self):
         """
@@ -149,24 +197,26 @@ Welcome to P2P Client. Please choose one of the following commands:
         while True:
             print("# > ", end="")
             command = raw_input()
-            try:
-                command = int(command)
-                if command == 1:
-                    return 0
-                elif command == 2:
-                    return 0
-                elif command == 3:
-                    return 0
-                elif command == 4:
-                    return 0
-                elif command == 5:
-                    return 0
-                else:
-                    print(msg)
-                    print("Invalid selection")
-            except:
+            # try:
+            command = int(command)
+            if command == 1:
+                self.get_available_files()
+            elif command == 2:
+                checksum = 0
+                self.get_peers_with_file(checksum)
+            elif command == 3:
+                checksum = 0
+                self.download_file(checksum)
+            elif command == 4:
+                self.update_tracker_new_files()
+            elif command == 5:
+                self.exit_network()
+            else:
                 print(msg)
                 print("Invalid selection")
+            # except:
+            #     print(msg)
+            #     print("Invalid selection")
 
 
     # def heartbeat_func(self):
