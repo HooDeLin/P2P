@@ -1,3 +1,4 @@
+from __future__ import print_function
 import socket
 import threading
 import sys
@@ -117,6 +118,56 @@ class Peer:
             print("Registered as peer")
             self.listening_socket.close()
 
+    def start_tui(self):
+        """
+        Displays commands to the user, and dispatches to the relevant methods
+        """
+        msg = """
+/////////////////////////////////////////////////////////////////////
+
+Welcome to P2P Client. Please choose one of the following commands:
+
+/////////////////////////////////////////////////////////////////////
+
+1. List all available files, along with their checksums
+   Usage: 1
+
+2. List all Peers possessing a file
+   Usage: 2 <file checksum>
+
+3. Download file
+   Usage: 3 <file checksum>
+
+4. Update Tracker of your new files and chunks
+   Usage: 4
+
+5. Exit P2P Client
+   Usage: 5
+        """
+        print(msg)
+        while True:
+            print("# > ", end="")
+            command = raw_input()
+            try:
+                command = int(command)
+                if command == 1:
+                    return 0
+                elif command == 2:
+                    return 0
+                elif command == 3:
+                    return 0
+                elif command == 4:
+                    return 0
+                elif command == 5:
+                    return 0
+                else:
+                    print(msg)
+                    print("Invalid selection")
+            except:
+                print(msg)
+                print("Invalid selection")
+
+
     # def heartbeat_func(self):
     #     self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     #     server_address = (self.tracker_address, self.tracker_port)
@@ -135,3 +186,5 @@ class Peer:
     def start_peer(self):
         self.register_as_peer()
         # self.heartbeat = RecurringThread(5, self.heartbeat_func)
+        # Start the Text UI
+        self.start_tui()
