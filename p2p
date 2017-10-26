@@ -3,15 +3,20 @@ import sys
 from tracker import Tracker
 from peer import Peer
 from args_parser import parse_args
+from runner import Runner
 
 if __name__ == "__main__":
     # Have fun
     print("Starting P2P Application...")
     settings = parse_args(sys.argv)
     print("These are your settings: " + str(settings))
-    if settings["role"] == "tracker":
-        tracker = Tracker(settings)
-        tracker.start_tracker()
-    elif settings["role"] == "peer":
-        peer = Peer(settings)
-        peer.start_peer()
+    runner = Runner()
+    try:
+        if settings["role"] == "tracker":
+            runner = Tracker(settings)
+            runner.start_tracker()
+        elif settings["role"] == "peer":
+            runner = Peer(settings)
+            runner.start_peer()
+    except KeyboardInterrupt:
+        runner.stop()

@@ -7,8 +7,9 @@ import os
 import hashlib
 
 from recurring_thread import RecurringThread
+from runner import Runner
 
-class Peer:
+class Peer(Runner):
     def __init__(self, settings):
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tracker_address = settings["tracker-address"]
@@ -186,5 +187,12 @@ Welcome to P2P Client. Please choose one of the following commands:
     def start_peer(self):
         self.register_as_peer()
         # self.heartbeat = RecurringThread(5, self.heartbeat_func)
+<<<<<<< HEAD
         # Start the Text UI
         self.start_tui()
+=======
+
+    def stop(self):
+        print("Stopping peer")
+        self.listening_socket.close()
+>>>>>>> ff2528f4063b5bc1bb62ba1cc2f32745d452ca11
