@@ -52,8 +52,6 @@ class Talk:
         socket = socket.socket()
         socket.connect((host, port))
 
-
-
     def listen_for_request():
         # neighbor_addr = (self.neighbor_address, self.neighbor_port)
         self.listening_socket.bind("", self.port)
