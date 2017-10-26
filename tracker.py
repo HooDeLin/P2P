@@ -5,8 +5,9 @@ import random
 import hashlib
 from sets import Set
 from recurring_thread import RecurringThread
+from runner import Runner
 
-class Tracker:
+class Tracker(Runner):
 
     def __init__(self, settings):
         self.peer_set = Set()
@@ -131,4 +132,8 @@ class Tracker:
                 print 'Returning data: ' + return_data
                 conn.sendall(return_data)
             conn.close()
+        self.listening_socket.close()
+
+    def stop(self):
+        print("Stopping tracker")
         self.listening_socket.close()

@@ -6,8 +6,9 @@ import os
 import hashlib
 
 from recurring_thread import RecurringThread
+from runner import Runner
 
-class Peer:
+class Peer(Runner):
     def __init__(self, settings):
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tracker_address = settings["tracker-address"]
@@ -124,3 +125,7 @@ class Peer:
     def start_peer(self):
         self.register_as_peer()
         # self.heartbeat = RecurringThread(5, self.heartbeat_func)
+
+    def stop(self):
+        print("Stopping peer")
+        self.listening_socket.close()
