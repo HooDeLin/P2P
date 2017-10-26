@@ -136,16 +136,22 @@ class Peer(Runner):
         """
         message = { "message_type": "QUERY_LIST_OF_FILES" }
         reply = self.send_message_to_tracker(message)
-        print(reply)
+        # Format the replies and display to user
+        filenames = sorted(reply['files'])
+        print("These are the available files on the network: ")
+        for idx, filename in enumerate(filenames, start=1):
+            print("{}: {}".format(idx, filename))
 
-    def get_peers_with_file(self, checksum):
+    def get_peers_with_file(self, filename):
         """
-        Asks the Tracker for a list of peers containing a file with this checksum
+        Asks the Tracker for a list of peers containing a file with this filename
         """
         message = {}
         message['message_type'] = "QUERY_FILE"
-        message['filename'] = checksum
+        message['filename'] = filename
         reply = self.send_message_to_tracker(message)
+        # Format the replies and display to user
+        filenames = sorted(reply[owners])
         print(reply)
 
     def download_file(self, checksum):
@@ -216,13 +222,13 @@ Welcome to P2P Client. Please choose one of the following commands:
                 print(msg)
                 print("Invalid command")
             command = int(input_lst[0])
-            checksum = input_lst[1] if len(input_lst) > 1 else None
+            filename = input_lst[1] if len(input_lst) > 1 else None
             if command == 1:
                 self.get_available_files()
             elif command == 2:
-                self.get_peers_with_file(checksum) if checksum else print("Please provide a checksum")
+                self.get_peers_with_file(filename) if filename else print("Please provide a filename")
             elif command == 3:
-                self.download_file(checksum) if checksum else print("Please provide a checksum")
+                self.download_file(filename) if filename else print("Please provide a filename")
             elif command == 4:
                 self.update_tracker_new_files()
             elif command == 5:
