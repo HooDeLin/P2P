@@ -3,9 +3,10 @@ import json
 import sys
 import random
 import hashlib
+from threading import Thread
 from sets import Set
-from recurring_thread import RecurringThread
 from runner import Runner
+from threading import Lock
 
 class Tracker(Runner):
 
@@ -14,6 +15,7 @@ class Tracker(Runner):
         self.file_details = {}
         self.file_owners = {}
         self.chunk_owners = {}
+        self.lock = Lock()
         self.port = settings["port"]
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print ("Socket created")
@@ -111,27 +113,34 @@ class Tracker(Runner):
             print("Not yet implemented")
             return self.create_not_yet_implemented_reply()
         if msg["message_type"] == "INFORM_AND_UPDATE":
+            self.lock.acquire()
             self.handle_inform_and_update_message(msg, addr)
+            self.lock.release()
             return self.create_ack_reply()
         elif msg["message_type"] == "QUERY_LIST_OF_FILES":
             return self.create_list_of_files_reply()
         elif msg["message_type"] == "QUERY_FILE":
             return self.create_file_reply(msg["filename"])
         elif msg["message_type"] == "EXIT":
+            self.lock.acquire()
             self.handle_exit_message(msg, addr)
-            print(self.chunk_owners)
+            self.lock.release()
             return self.create_ack_reply()
+
+    def handle_connection(self, conn, addr):
+        data = conn.recv(1024)
+        print 'Received data: ' + data
+        if data:
+            return_data = self.parse_msg(data, addr)
+            print 'Returning data: ' + return_data
+            conn.sendall(return_data)
+        conn.close()
 
     def start_tracker(self):
         while 1:
             conn, addr = self.listening_socket.accept()
-            data = conn.recv(1024)
-            print 'Received data: ' + data
-            if data:
-                return_data = self.parse_msg(data, addr)
-                print 'Returning data: ' + return_data
-                conn.sendall(return_data)
-            conn.close()
+            t = Thread(target=self.handle_connection, args=(conn, addr))
+            t.start()
         self.listening_socket.close()
 
     def stop(self):
