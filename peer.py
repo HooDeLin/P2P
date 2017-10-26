@@ -34,7 +34,9 @@ class Peer:
         return files
 
     def format_complete_file(self, filename):
-        # Change "filename" to (filename, checksum of file, number of chunks)
+        # Change "filename" to
+        # {"filechecksum": "checksum", "num_of_chunks": 1, "filename": "test_c"}
+        ret = {}
         full_path = os.path.join(self.directory, filename)
         # Warning: Memory inefficient! Refer to
         # https://stackoverflow.com/questions/3431825/generating-an-md5-checksum-of-a-file
@@ -45,11 +47,15 @@ class Peer:
             num_chunks = file_size / self.chunk_size
         else:
             num_chunks = file_size / self.chunk_size + 1
-        return (filename, file_checksum, num_chunks)
+        ret["filechecksum"] = file_checksum
+        ret["num_of_chunks"] = num_chunks
+        ret["filename"] = filename
+        return ret
 
     def format_chunks(self, chunks):
-        # Change "chunk" to (filename, [list of chunks owned])
-        # Returns: [(filename, [list of chunks owned]), ...]
+        # Change "chunk"
+        # {"chunks": [1, 2, 3, 4, 5], "filename": "test_b"}
+        # Returns: [{"chunks": [list of chunks owned], "filename": filename}, ... ]
         mapping = {}
         # chunk naming convention: <filename>.<chunk_num>.chunk
         for chunk in chunks:
@@ -60,7 +66,10 @@ class Peer:
                 mapping[filename].append(chunk_num)
             else:
                 mapping[filename] = [chunk_num]
-        return zip(mapping.keys(), mapping.values())
+        ret = []
+        for filename, chunks in mapping.items():
+            ret.append({"filename": filename, "chunks": chunks})
+        return ret
 
     def process_dir_listing(self):
         # Process the files in self.directory, and sets the result in
@@ -75,19 +84,23 @@ class Peer:
         # Informs tracker of files in directory, checksum of each file, owned
         # chunks of each file, source port of Peer
         # {
-        #     files: [(filename, file_checksum, number of chunks), ...]
-        #     chunks: [(filename, [list of chunks owned]), ...]
-        #     source_port: port_num,
-        #     message_type: "INFORM_AND_UPDATE"
+        #     "source_port": port_num,
+        #     "files": [{"filechecksum": "checksum", "num_of_chunks": 1, "filename": "test_c"}, ...],
+        #     "chunks": [{"chunks": [1, 2, 3, 4, 5], "filename": "test_b"}, ...]
+        #     "message_type": "INFORM_AND_UPDATE",
         # }
         info = {}
+        info["source_port"] = self.port
         info["files"] = self.files
         info["chunks"] = self.chunks
-        info["source_port"] = self.port
         info["message_type"] = "INFORM_AND_UPDATE"
         return info
 
     def register_as_peer(self):
+        """
+        Informs the Tracker of the files and chunks that you are sharing
+        Does this by opening a socket to the Tracker and sending the data
+        """
         server_address = (self.tracker_address, self.tracker_port)
         # Important to call this before trying to create the message to send
         self.process_dir_listing()
@@ -97,8 +110,6 @@ class Peer:
             self.listening_socket.sendall(json.dumps(message))
             data = self.listening_socket.recv(1024)
             received_data = json.loads(data)
-            self.peer_id = received_data["peer_id"]
-            self.neighboring_peers = received_data["neighboring_peers"]
         except:
             print("Unable to register as peer")
             exit()
