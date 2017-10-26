@@ -97,36 +97,34 @@ class Peer(Runner):
         info["message_type"] = "INFORM_AND_UPDATE"
         return info
 
-    def update_tracker(self, success_msg, failure_msg, should_exit=False):
-        """
-        Informs the Tracker of the files and chunks that you are sharing
-        Does this by opening a socket to the Tracker and sending the data
-
-        Note: function is not used on its own. Used by two other methods by
-        changing the arguments
-        """
+    def send_message_to_tracker(self, message, success_msg="", failure_msg="",
+                                should_exit=False):
+        # Helper function whenever Peer needs to send a message to Tracker
         server_address = (self.tracker_address, self.tracker_port)
         sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sending_socket.connect(server_address)
-        # Important to call this before trying to create the message to send
-        self.process_dir_listing()
         try:
-            message = self.create_info_for_tracker()
             sending_socket.sendall(json.dumps(message))
             data = sending_socket.recv(1024)
             received_data = json.loads(data)
-            print(success_msg)
-        except:
-            print(failure_msg)
-            if should_exit:
-                # self.listening_socket.close()
-                exit()
-        finally:
+            if success_msg:
+                print(success_msg)
             sending_socket.close()
+            return received_data
+        except:
+            sending_socket.close()
+            if failure_msg:
+                print(failure_msg)
+            if should_exit:
+                exit()
 
     def register_as_peer(self):
-        # First run of self.update_tracker
-        self.update_tracker(
+        # Informs the Tracker of the files and chunks that you are sharing
+        # Does this by opening a socket to the Tracker and sending the data
+        self.process_dir_listing()
+        message = self.create_info_for_tracker()
+        self.send_message_to_tracker(
+            message=message,
             success_msg="Successfully registered as Peer",
             failure_msg="Unable to register as Peer. Exiting...",
             should_exit=True
@@ -136,17 +134,26 @@ class Peer(Runner):
         """
         Asks the Tracker for a list of all files in this network
         """
-        return 0
+        message = { "message_type": "QUERY_LIST_OF_FILES" }
+        reply = self.send_message_to_tracker(message)
+        print(reply)
 
     def get_peers_with_file(self, checksum):
         """
         Asks the Tracker for a list of peers containing a file with this checksum
         """
-        return 0
+        message = {}
+        message['message_type'] = "QUERY_FILE"
+        message['filename'] = checksum
+        reply = self.send_message_to_tracker(message)
+        print(reply)
 
     def download_file(self, checksum):
         """
         Downloads the file with this checksum from other Peers in the network
+
+        Process is transparent to the user. Peer program decides which other
+        Peer to download from, as well as the chunks to request.
         """
         return 0
 
@@ -154,17 +161,24 @@ class Peer(Runner):
         """
         Informs the Tracker of the additional files and chunks that you are sharing
         """
-        self.update_tracker(
+        self.process_dir_listing()
+        message = self.create_info_for_tracker()
+        self.send_message_to_tracker(
+            message=message,
             success_msg="Update successful",
             failure_msg="Update unsuccessful"
         )
-        return 0
 
     def exit_network(self):
         """
         Tells the Tracker that you are exiting the network
         """
-        return 0
+        message = {}
+        message["source_port"] = self.port
+        message["message_type"] = "EXIT"
+        self.send_message_to_tracker(message)
+        print("Exiting...")
+        exit()
 
     def start_tui(self):
         """
@@ -195,24 +209,27 @@ Welcome to P2P Client. Please choose one of the following commands:
         print(msg)
         while True:
             print("# > ", end="")
-            command = raw_input()
+            user_input = raw_input()
             # try:
-            command = int(command)
+            input_lst = user_input.split(" ")
+            if len(input_lst) > 2:
+                print(msg)
+                print("Invalid command")
+            command = int(input_lst[0])
+            checksum = input_lst[1] if len(input_lst) > 1 else None
             if command == 1:
                 self.get_available_files()
             elif command == 2:
-                checksum = 0
-                self.get_peers_with_file(checksum)
+                self.get_peers_with_file(checksum) if checksum else print("Please provide a checksum")
             elif command == 3:
-                checksum = 0
-                self.download_file(checksum)
+                self.download_file(checksum) if checksum else print("Please provide a checksum")
             elif command == 4:
                 self.update_tracker_new_files()
             elif command == 5:
                 self.exit_network()
             else:
                 print(msg)
-                print("Invalid selection")
+                print("Invalid command")
             # except:
             #     print(msg)
             #     print("Invalid selection")
