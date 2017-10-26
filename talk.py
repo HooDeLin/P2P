@@ -45,11 +45,12 @@ class Talk:
             connect.send("Done Upload")
 
     def Download(self, filename):
+    	# query the tracker who has the chucks to the file by supplying the filename / checksum
+    	message = { "message_type": "QUERY_LIST_OF_FILES", "filename": filename }
+        reply = self.send_message_to_tracker(message)
+
         socket = socket.socket()
         socket.connect((host, port))
-
-
-
 
     def listen_for_request():
         # neighbor_addr = (self.neighbor_address, self.neighbor_port)
