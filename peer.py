@@ -187,12 +187,9 @@ Welcome to P2P Client. Please choose one of the following commands:
     def start_peer(self):
         self.register_as_peer()
         # self.heartbeat = RecurringThread(5, self.heartbeat_func)
-<<<<<<< HEAD
         # Start the Text UI
         self.start_tui()
-=======
 
     def stop(self):
         print("Stopping peer")
         self.listening_socket.close()
->>>>>>> ff2528f4063b5bc1bb62ba1cc2f32745d452ca11
