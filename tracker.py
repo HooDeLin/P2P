@@ -74,6 +74,9 @@ class Tracker(Runner):
         return
 
     def create_file_reply(self, file_name):
+        if file_name not in self.file_details:
+            msg = {"message_type": "QUERY_FILE_ERROR", "error": "File does not exists"}
+            return json.dumps(msg)
         checksum = self.file_details[file_name]["filechecksum"]
         num_of_chunks = self.file_details[file_name]["num_of_chunks"]
         owners = self.file_owners[file_name]
