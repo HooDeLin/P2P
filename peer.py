@@ -11,7 +11,7 @@ from runner import Runner
 
 class Peer(Runner):
     def __init__(self, settings):
-        self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tracker_address = settings["tracker-address"]
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
@@ -21,7 +21,6 @@ class Peer(Runner):
         self.files = []
         # List of (formatted) incomplete files that the Peer is sharing
         self.chunks = []
-        print ("Socket created")
 
     def get_directory_files(self):
         # Returns a list of filenames in self.directory
@@ -98,8 +97,7 @@ class Peer(Runner):
         info["message_type"] = "INFORM_AND_UPDATE"
         return info
 
-    def update_tracker(self, success_msg, failure_msg, should_connect=False,
-                       should_exit=False):
+    def update_tracker(self, success_msg, failure_msg, should_exit=False):
         """
         Informs the Tracker of the files and chunks that you are sharing
         Does this by opening a socket to the Tracker and sending the data
@@ -108,28 +106,29 @@ class Peer(Runner):
         changing the arguments
         """
         server_address = (self.tracker_address, self.tracker_port)
+        sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sending_socket.connect(server_address)
         # Important to call this before trying to create the message to send
         self.process_dir_listing()
-        if should_connect:
-            self.listening_socket.connect(server_address)
         try:
             message = self.create_info_for_tracker()
-            self.listening_socket.sendall(json.dumps(message))
-            data = self.listening_socket.recv(1024)
+            sending_socket.sendall(json.dumps(message))
+            data = sending_socket.recv(1024)
             received_data = json.loads(data)
             print(success_msg)
         except:
             print(failure_msg)
             if should_exit:
-                self.listening_socket.close()
+                # self.listening_socket.close()
                 exit()
+        finally:
+            sending_socket.close()
 
     def register_as_peer(self):
         # First run of self.update_tracker
         self.update_tracker(
             success_msg="Successfully registered as Peer",
             failure_msg="Unable to register as Peer. Exiting...",
-            should_connect=True,
             should_exit=True
         )
 
@@ -242,4 +241,4 @@ Welcome to P2P Client. Please choose one of the following commands:
 
     def stop(self):
         print("Stopping peer")
-        self.listening_socket.close()
+        # self.listening_socket.close()
