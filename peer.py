@@ -151,7 +151,7 @@ class Peer(Runner):
         message['filename'] = filename
         reply = self.send_message_to_tracker(message)
         # Format the replies and display to user
-        filenames = sorted(reply[owners])
+        # filenames = sorted(reply[owners])
         print(reply)
 
     def download_file(self, checksum):

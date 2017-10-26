@@ -59,7 +59,7 @@ class Tracker(Runner):
             # Add the owner to file owners
             if file_name not in self.file_owners:
                 self.file_owners[file_name] = [peer_id]
-            elif file_name not in self.file_owners[file_name]:
+            elif peer_id not in self.file_owners[file_name]:
                 self.file_owners[file_name].append(peer_id)
 
         for peer_file_chunks in msg["chunks"]:
