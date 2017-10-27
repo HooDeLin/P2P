@@ -11,7 +11,7 @@ from runner import Runner
 
 class Peer(Runner):
     def __init__(self, settings):
-        # self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tracker_address = settings["tracker-address"]
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
