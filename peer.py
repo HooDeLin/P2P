@@ -252,25 +252,10 @@ Welcome to P2P Client. Please choose one of the following commands:
             #     print(msg)
             #     print("Invalid selection")
 
-
-    # def heartbeat_func(self):
-    #     self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #     server_address = (self.tracker_address, self.tracker_port)
-    #     self.listening_socket.connect(server_address)
-    #     try:
-    #         message = {}
-    #         message["msg_type"] = "HEARTBEAT"
-    #         message["peer_id"] = self.peer_id
-    #         self.listening_socket.sendall(json.dumps(message))
-    #         print("Sent heartbeat message")
-    #     except:
-    #         print("Unable to send heartbeat message")
-    #     finally:
-    #         self.listening_socket.close()
-
     def start_peer(self):
+        # Start a listening socket thread
+        # Register as peer
         self.register_as_peer()
-        # self.heartbeat = RecurringThread(5, self.heartbeat_func)
         # Start the Text UI
         self.start_tui()
 
