@@ -22,7 +22,7 @@ class Peer(Runner):
         # List of (formatted) incomplete files that the Peer is sharing
         self.chunks = []
         self.listening_socket.listen(10)
-        print 'Peer Socket now listening'
+        print("Peer Socket now listening")
 
     def get_directory_files(self):
         # Returns a list of filenames in self.directory
@@ -225,7 +225,7 @@ class Peer(Runner):
         # Handle "file not found"
         if reply["message_type"] == "QUERY_FILE_ERROR":
             print(reply["error"])
-            return 
+            return
 
         # chunks = {chunk#: ["ip:port", "ip:port"], chunk#: ["ip:port"]}
         for key, chunkOwners in reply["chunks"].items():
