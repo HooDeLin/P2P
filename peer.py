@@ -174,7 +174,7 @@ class Peer(Runner):
 
         if data_from_requester:
             fileInfo = json.loads(data) 
-            print 'Requesting following chunk: ' + fileInfo["chunkFileName"]
+            print "Requesting following chunk: " + fileInfo["chunkFileName"]
 
             chunk_file_name = fileinfo["chunkFileName"];
 
@@ -187,7 +187,7 @@ class Peer(Runner):
 
                 response_data_from_requester = connect.recv(1024)
                 requester_response = json.loads(response_data_from_requester)
-                if requester_response['message_type'] == 'OK':
+                if requester_response["message_type"] == "OK":
                     with open(chunk_file_name, 'rb') as file_name:
                         bytesToSend = file_name.read(1024)
                         connect.send(bytesToSend)
@@ -216,8 +216,8 @@ class Peer(Runner):
         # message = { "message_type": "QUERY_FILE", "filename": filename }
         # reply = self.send_message_to_tracker(message)
         message = {}
-        message['message_type'] = "QUERY_FILE"
-        message['filename'] = filename
+        message["message_type"] = "QUERY_FILE"
+        message["filename"] = filename
         reply = self.send_message_to_tracker(message)
         
         # Handle "file not found"
@@ -226,7 +226,7 @@ class Peer(Runner):
             return 
 
         # chunks = {chunk#: ["ip:port", "ip:port"], chunk#: ["ip:port"]}
-        for key, chunkOwners in reply['chunks'].items():
+        for key, chunkOwners in reply["chunks"].items():
             chunk_file_name = filename + "." + key + ".chunk"
             number_of_owners = len(chunkOwners)
 
@@ -250,18 +250,18 @@ class Peer(Runner):
 
                     try:
                         message = {}
-                        message['chunkFileName'] = chunk_file_name
+                        message["chunkFileName"] = chunk_file_name
 
                         sending_socket.send(json.dumps(message)) # send the file info message to the owner
                         ownerResponse = sending_socket.recv(1024)
                         received_data_from_owner = json.loads(ownerResponse)
                         
                         # received_data_from_owner['message_type']:string, received_data_from_owner['chunkFileSize']:int
-                        if received_data_from_owner['message_type'] == 'FILE_EXISTS':
-                            chunk_file_size = received_data_from_owner['chunkFileSize']
+                        if received_data_from_owner["message_type"] == "FILE_EXISTS":
+                            chunk_file_size = received_data_from_owner["chunkFileSize"]
 
                             reply_message = {}
-                            reply_message['message_type'] = "OK"
+                            reply_message["message_type"] = "OK"
                             sending_socket.send(json.dumps(reply_message)) #aight! send it over
 
                             new_chunk_file = open(chunk_file_name, 'wb')
