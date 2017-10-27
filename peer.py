@@ -174,7 +174,7 @@ class Peer(Runner):
 
         if data_from_requester:
             fileInfo = json.loads(data) 
-            print "Requesting following chunk: " + fileInfo["chunkFileName"]
+            print ("Requesting following chunk: " + fileInfo["chunkFileName"])
 
             chunk_file_name = fileinfo["chunkFileName"];
 
@@ -230,7 +230,7 @@ class Peer(Runner):
             chunk_file_name = filename + "." + key + ".chunk"
             number_of_owners = len(chunkOwners)
 
-            if path_directory.isfile(chunk_file_name) 
+            if path_directory.isfile(chunk_file_name):
                 continue;
 
             else:
@@ -289,11 +289,11 @@ class Peer(Runner):
     def listen_for_request():
         self.listening_socket.bind("", self.port)
         
-        print "listening to any incoming request"
+        print("listening to any incoming request")
         
         while True:
             connect, neighbor_addr = self.listening_socket.accept()
-            print "neighbor connedted ip:<" + str(neighbor_addr) + ">"
+            print("neighbor connedted ip:<" + str(neighbor_addr) + ">")
             thread = threading.Thread(target=self.upload, args=(connect))
             thread.start()
 
