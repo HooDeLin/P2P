@@ -287,7 +287,7 @@ class Peer(Runner):
                         sending_socket.close()
 
     def listen_for_request(self):
-        self.listening_socket.bind("", self.port)
+        self.listening_socket.bind(("", self.port))
         
         print("listening to any incoming request")
         
