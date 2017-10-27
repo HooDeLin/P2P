@@ -21,6 +21,8 @@ class Peer(Runner):
         self.files = []
         # List of (formatted) incomplete files that the Peer is sharing
         self.chunks = []
+        self.listening_socket.listen(10)
+        print 'Peer Socket now listening'
 
     def get_directory_files(self):
         # Returns a list of filenames in self.directory
