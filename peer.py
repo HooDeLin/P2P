@@ -180,7 +180,9 @@ class Peer(Runner):
 
             main_file_name = fileInfo["fileName"]
             chunk_file_name = fileInfo["chunkFileName"];
-            chunk_number = fileInfo["chunkNumber"];
+            chunk_number = int(fileInfo["chunkNumber"]);
+
+            print(main_file_name)
 
             path_directory = os.path.join(self.directory, chunk_file_name)
             file_path_directory = os.path.join(self.directory, main_file_name)
@@ -198,7 +200,7 @@ class Peer(Runner):
                 if requester_response["message_type"] == "OK":
                     with open(file_path_directory, 'rb') as file_name:
                     	print("sending...")
-                        file_name.seek(chunk_number*256)
+                        file_name.seek(0)
                         bytesToSend = file_name.read(256)
                         
                         self.connect.send(bytesToSend)
@@ -206,8 +208,8 @@ class Peer(Runner):
                         while bytesToSend != "":
                             bytesToSend = file_name.read(256)
                             self.connect.send(bytesToSend)
-                            print("chunk sent")
 
+                        file_name.close()
                         print("Done.")
 
             elif os.path.isfile(path_directory):
@@ -229,6 +231,7 @@ class Peer(Runner):
                             bytesToSend = file_name.read(256)
                             self.connect.send(bytesToSend)
 
+                        file_name.close()
                         print("Done")
             else:
                 self.connect.send(json.dumps({"message_type":"NO_EXISTS"}))
@@ -242,7 +245,8 @@ class Peer(Runner):
         Peer to download from, as well as the chunks to request.
         """
 
-        path_directory = os.path.join(self.directory, filename)
+        full_file_directory = os.path.join(self.directory, filename)
+
         requested_from_owner_index = []
 
         sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -254,6 +258,8 @@ class Peer(Runner):
         message["message_type"] = "QUERY_FILE"
         message["filename"] = filename
         reply = self.send_message_to_tracker(message)
+
+        print(reply)
         
         # Handle "file not found"
         if reply["message_type"] == "QUERY_FILE_ERROR":
@@ -265,7 +271,7 @@ class Peer(Runner):
             chunk_file_name = filename + "." + key + ".chunk"
             number_of_owners = len(chunkOwners)
 
-            if os.path.isfile(path_directory):
+            if os.path.isfile(full_file_directory):
                 continue;
 
             else:
@@ -281,7 +287,7 @@ class Peer(Runner):
                     randomHostIPandPort = chunkOwners[randomHostIndex].split(":")
 
                     owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1]))
-                    print(owner_address)
+                    print("Requesting from " + str(owner_address))
                     sending_socket.connect(owner_address)
 
                     try:
@@ -302,18 +308,16 @@ class Peer(Runner):
                             reply_message["message_type"] = "OK"
                             sending_socket.send(json.dumps(reply_message)) #aight! send it over
 
-                            new_chunk_file = open(path_directory, 'wb')
+                            new_chunk_file = open(full_file_directory, 'wb')
                             chunk_data_from_owner = sending_socket.recv(256)
                             total_received = len(chunk_data_from_owner)
 
                             new_chunk_file.write(chunk_data_from_owner)
 
-                            while total_received < int(chunk_file_size):
+                            while total_received < chunk_file_size:
                                 chunk_data_from_owner = sending_socket.recv(256)
                                 total_received += len(chunk_data_from_owner)
                                 new_chunk_file.write(chunk_data_from_owner)
-                                print(total_received)
-                                print(chunk_file_size)
 
                             new_chunk_file.close()
 
@@ -327,7 +331,9 @@ class Peer(Runner):
                             reply_message["message_type"] = "OK"
                             sending_socket.send(json.dumps(reply_message)) #aight! send it over
 
-                            new_chunk_file = open(chunk_file_name, 'wb')
+                            chunk_file_directory = os.path.join(self.directory, chunk_file_name)
+                            
+                            new_chunk_file = open(chunk_file_directory, 'wb')
                             chunk_data_from_owner = sending_socket.recv(256)
                             total_received = len(chunk_data_from_owner)
 
@@ -337,6 +343,7 @@ class Peer(Runner):
                                 chunk_data_from_owner = sending_socket.recv(256)
                                 total_received += len(chunk_data_from_owner)
                                 new_chunk_file.write(chunk_data_from_owner)
+
                             new_chunk_file.close()
 
                             # update tracker
