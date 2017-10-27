@@ -82,11 +82,23 @@ class Tracker(Runner):
         owners = self.file_owners[file_name]
         chunks = {}
         if file_name in self.chunk_owners:
-            chunks = self.chunk_owners[file_name]
+            peer_id_with_chunks = self.chunk_owners[file_name]
+            for peer_id in peer_id_with_chunks.keys():
+                peer_chunks = peer_id_with_chunks[peer_id]
+                for chunk_num in peer_chunks:
+                    if str(chunk_num) in chunks:
+                        chunks[str(chunk_num)].append(peer_id)
+                    else:
+                        chunks[str(chunk_num)] = [peer_id]
+        for owner in owners:
+            for i in range(num_of_chunks):
+                if str(i) in chunks:
+                    chunks[str(i)].append(owner)
+                else:
+                    chunks[str(i)] = [owner]
         msg = {"message_type": "QUERY_FILE_REPLY",
                "filename": file_name,
                "checksum": checksum,
-               "owners": owners,
                "chunks": chunks,
                "num_of_chunks": num_of_chunks,
         }
