@@ -376,6 +376,7 @@ Welcome to P2P Client. Please choose one of the following commands:
 
     def start_peer(self):
         # Start a listening socket thread
+        self.listen_for_request()
         # Register as peer
         self.register_as_peer()
         # Start the Text UI
