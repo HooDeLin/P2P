@@ -297,7 +297,11 @@ class Peer(Runner):
         self.listening_socket.listen(10)        
         print("Socket now listening to any incoming request")
         
-        while True:
+        thread = threading.Thread(target=self.process_thread, args=())
+        thread.start()
+
+    def process_thread(self):
+    	while True:
             connect, neighbor_addr = self.listening_socket.accept()
             print("neighbor connedted ip:<" + str(neighbor_addr) + ">")
             thread = threading.Thread(target=self.upload, args=(connect))
