@@ -21,8 +21,6 @@ class Peer(Runner):
         self.files = []
         # List of (formatted) incomplete files that the Peer is sharing
         self.chunks = []
-        self.listening_socket.listen(10)
-        print("Peer Socket now listening")
 
     def get_directory_files(self):
         # Returns a list of filenames in self.directory
@@ -289,9 +287,15 @@ class Peer(Runner):
                         sending_socket.close()
 
     def listen_for_request(self):
-        self.listening_socket.bind(("", self.port))
+    	try:
+        	self.listening_socket.bind(("", self.port))
+        except socket.error as msg:
+            print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+            sys.exit()
+        print('Socket bind complete')
         
-        print("listening to any incoming request")
+        self.listening_socket.listen(10)        
+        print("Socket now listening to any incoming request")
         
         while True:
             connect, neighbor_addr = self.listening_socket.accept()
