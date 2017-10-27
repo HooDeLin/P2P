@@ -150,9 +150,21 @@ class Peer(Runner):
         message['message_type'] = "QUERY_FILE"
         message['filename'] = filename
         reply = self.send_message_to_tracker(message)
+        # Handle "file not found"
+        if reply["message_type"] == "QUERY_FILE_ERROR":
+            print(reply["error"])
+            return
         # Format the replies and display to user
-        # filenames = sorted(reply[owners])
-        print(reply)
+        print("These are the Peers who currently have the file: ")
+        owners = sorted(reply['owners'])
+        for idx, owner in enumerate(owners, start=1):
+            print("{}: {}".format(idx, owner))
+        reply.pop("owners", None)  # remove the "owner" key
+        reply.pop("message_type", None)  # remove the "message_type" key
+        print("")
+        print("File information: ")
+        for k, v in reply.items():
+            print("{}: {}".format(k, v))
 
     def download_file(self, checksum):
         """
