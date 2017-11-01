@@ -5,6 +5,7 @@ import sys
 import json
 import os
 import hashlib
+import stun
 
 from recurring_thread import RecurringThread
 from runner import Runner
@@ -17,6 +18,8 @@ class Peer(Runner):
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
         self.directory = settings["peer-directory"]
+        self.external_ip = None
+        self.external_port = None
         self.chunk_size = 256 * 1024
         # List of (formatted) files that the Peer is sharing
         self.files = []
@@ -95,7 +98,8 @@ class Peer(Runner):
         #     "message_type": "INFORM_AND_UPDATE",
         # }
         info = {}
-        info["source_port"] = self.port
+        info["source_ip"] = self.external_ip
+        info["source_port"] = self.external_port
         info["files"] = self.files
         info["chunks"] = self.chunks
         info["message_type"] = "INFORM_AND_UPDATE"
@@ -196,13 +200,13 @@ class Peer(Runner):
 
                 response_data_from_requester = self.connect.recv(1024)
                 requester_response = json.loads(response_data_from_requester)
-                
+
                 if requester_response["message_type"] == "OK":
                     with open(file_path_directory, 'rb') as file_name:
                     	print("sending...")
                         file_name.seek(0)
                         bytesToSend = file_name.read(256)
-                        
+
                         self.connect.send(bytesToSend)
 
                         while bytesToSend != "":
@@ -260,7 +264,7 @@ class Peer(Runner):
         reply = self.send_message_to_tracker(message)
 
         print(reply)
-        
+
         # Handle "file not found"
         if reply["message_type"] == "QUERY_FILE_ERROR":
             print(reply["error"])
@@ -276,7 +280,7 @@ class Peer(Runner):
 
             else:
                 for owner in chunkOwners:
-                    
+
                     #randomly choosing host
                     randomHostIndex = randint(0, number_of_owners-1)
                     while randomHostIndex in requested_from_owner_index:
@@ -299,7 +303,7 @@ class Peer(Runner):
                         sending_socket.send(json.dumps(message)) # send the file info message to the owner
                         ownerResponse = sending_socket.recv(1024)
                         received_data_from_owner = json.loads(ownerResponse)
-                        
+
                         # received_data_from_owner['message_type']:string, received_data_from_owner['chunkFileSize']:int
                         if received_data_from_owner["message_type"] == "FULL_FILE_EXISTS":
                             chunk_file_size = received_data_from_owner["chunkFileSize"]
@@ -332,7 +336,7 @@ class Peer(Runner):
                             sending_socket.send(json.dumps(reply_message)) #aight! send it over
 
                             chunk_file_directory = os.path.join(self.directory, chunk_file_name)
-                            
+
                             new_chunk_file = open(chunk_file_directory, 'wb')
                             chunk_data_from_owner = sending_socket.recv(256)
                             total_received = len(chunk_data_from_owner)
@@ -358,6 +362,16 @@ class Peer(Runner):
 
         sending_socket.close()
 
+    def hole_punching(self):
+        print("Punching a hole...")
+        nat_type, external_ip, external_port = stun.get_ip_info("0.0.0.0", self.port)
+        if nat_type == "Symmetric NAT":
+            print("You are using Symmetric NAT, not handling that")
+            exit()
+        print("Hole punched: Your IP is " + str(self.external_ip) + " and your port number is " + str(self.external_port))
+        self.external_ip = external_ip
+        self.external_port = external_port
+
     def listen_for_request(self):
     	try:
         	self.listening_socket.bind(("", self.port))
@@ -365,10 +379,10 @@ class Peer(Runner):
             print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
             sys.exit()
         print('Socket bind complete')
-        
-        self.listening_socket.listen(10)        
+
+        self.listening_socket.listen(10)
         print("Socket now listening to any incoming request")
-        
+
         thread = threading.Thread(target=self.process_thread, args=())
         self.thread_array.append(thread)
         thread.start()
@@ -459,11 +473,13 @@ Welcome to P2P Client. Please choose one of the following commands:
             #     print("Invalid selection")
 
     def start_peer(self):
-        # Start a listening socket thread
+        # Punch a hole
+        self.hole_punching()
+        # # Start a listening socket thread
         self.listen_for_request()
-        # Register as peer
+        # # Register as peer
         self.register_as_peer()
-        # Start the Text UI
+        # # Start the Text UI
         self.start_tui()
 
     def stop(self):

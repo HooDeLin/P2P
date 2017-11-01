@@ -44,8 +44,8 @@ class Tracker(Runner):
         msg["files"] = list(set(self.chunk_owners.keys() + self.file_details.keys()))
         return json.dumps(msg)
 
-    def handle_inform_and_update_message(self, msg, addr):
-        peer_id = addr[0] + ":" + str(msg["source_port"])
+    def handle_inform_and_update_message(self, msg):
+        peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
         self.peer_set.add(peer_id)
         for peer_files in msg["files"]:
             file_name = peer_files["filename"]
@@ -104,8 +104,8 @@ class Tracker(Runner):
         }
         return json.dumps(msg)
 
-    def handle_exit_message(self, msg, addr):
-        peer_id = addr[0] + ":" + str(msg["source_port"])
+    def handle_exit_message(self, msg):
+        peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
         self.peer_set.discard(peer_id)
         file_that_has_peer_as_solo_owners = []
         file_owner_that_needs_to_be_removed = []
@@ -129,7 +129,7 @@ class Tracker(Runner):
             return self.create_not_yet_implemented_reply()
         if msg["message_type"] == "INFORM_AND_UPDATE":
             self.lock.acquire()
-            self.handle_inform_and_update_message(msg, addr)
+            self.handle_inform_and_update_message(msg)
             self.lock.release()
             return self.create_ack_reply()
         elif msg["message_type"] == "QUERY_LIST_OF_FILES":
@@ -138,7 +138,7 @@ class Tracker(Runner):
             return self.create_file_reply(msg["filename"])
         elif msg["message_type"] == "EXIT":
             self.lock.acquire()
-            self.handle_exit_message(msg, addr)
+            self.handle_exit_message(msg)
             self.lock.release()
             return self.create_ack_reply()
 
