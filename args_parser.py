@@ -29,12 +29,15 @@ def parse_args(system_arguments):
     settings = {};
     system_arguments = system_arguments[1:]
 
-    supported_flags = ["--role", "--port", "--tracker-address", "--tracker-port", "--peer-directory"]
+    supported_flags = ["--role", "--port", "--tracker-address", "--tracker-port", "--peer-directory", "--hole-punching"]
     flag = ""
     for arg in system_arguments:
         if flag == "":
             if arg in supported_flags:
-                flag = arg
+                if arg == "--hole-punching":
+                    settings["hole-punching"] == True
+                else:
+                    flag = arg
             else:
                 sys.exit("Unsupported flag: " + arg)
         else:

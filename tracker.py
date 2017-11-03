@@ -44,8 +44,12 @@ class Tracker(Runner):
         msg["files"] = list(set(self.chunk_owners.keys() + self.file_details.keys()))
         return json.dumps(msg)
 
-    def handle_inform_and_update_message(self, msg):
-        peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
+    def handle_inform_and_update_message(self, msg, addr):
+        peer_id = ""
+        if "source_ip" in msg:
+            peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
+        else:
+            peer_id = addr[0] + ":" + str(msg["source_port"])
         self.peer_set.add(peer_id)
         for peer_files in msg["files"]:
             file_name = peer_files["filename"]
@@ -129,7 +133,7 @@ class Tracker(Runner):
             return self.create_not_yet_implemented_reply()
         if msg["message_type"] == "INFORM_AND_UPDATE":
             self.lock.acquire()
-            self.handle_inform_and_update_message(msg)
+            self.handle_inform_and_update_message(msg, addr)
             self.lock.release()
             return self.create_ack_reply()
         elif msg["message_type"] == "QUERY_LIST_OF_FILES":

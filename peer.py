@@ -18,6 +18,7 @@ class Peer(Runner):
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
         self.directory = settings["peer-directory"]
+        self.hole_punching = "hole-punching" in settings
         self.external_ip = None
         self.external_port = None
         self.chunk_size = 256 * 1024
@@ -98,8 +99,11 @@ class Peer(Runner):
         #     "message_type": "INFORM_AND_UPDATE",
         # }
         info = {}
-        info["source_ip"] = self.external_ip
-        info["source_port"] = self.external_port
+        if self.hole_punching:
+            info["source_ip"] = self.external_ip
+            info["source_port"] = self.external_port
+        else:
+            info["source_port"] = self.port
         info["files"] = self.files
         info["chunks"] = self.chunks
         info["message_type"] = "INFORM_AND_UPDATE"
@@ -474,7 +478,8 @@ Welcome to P2P Client. Please choose one of the following commands:
 
     def start_peer(self):
         # Punch a hole
-        self.hole_punching()
+        if self.hole_punching:
+            self.hole_punching()
         # # Start a listening socket thread
         self.listen_for_request()
         # # Register as peer
