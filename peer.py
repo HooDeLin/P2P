@@ -117,7 +117,7 @@ class Peer(Runner):
         sending_socket.connect(server_address)
         try:
             sending_socket.sendall(json.dumps(message))
-            data = sending_socket.recv(1048576) #recv ONE freaking MB
+            data = sending_socket.recv(1048576) #recv 1 freaking MB
             received_data = json.loads(data)
             if success_msg:
                 print(success_msg)
