@@ -3,7 +3,7 @@ import socket
 import threading
 import sys
 import json
-import os
+import os, glob
 import hashlib
 import stun
 
@@ -13,7 +13,7 @@ from random import randint
 
 class Peer(Runner):
     def __init__(self, settings):
-        self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.tracker_address = settings["tracker-address"]
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
@@ -21,7 +21,7 @@ class Peer(Runner):
         self.hole_punching = "hole-punching" in settings
         self.external_ip = None
         self.external_port = None
-        self.chunk_size = 256 * 1024
+        self.chunk_size = 1024 #byte
         # List of (formatted) files that the Peer is sharing
         self.files = []
         # List of (formatted) incomplete files that the Peer is sharing
@@ -117,7 +117,7 @@ class Peer(Runner):
         sending_socket.connect(server_address)
         try:
             sending_socket.sendall(json.dumps(message))
-            data = sending_socket.recv(1024)
+            data = sending_socket.recv(1048576) #recv ONE freaking MB
             received_data = json.loads(data)
             if success_msg:
                 print(success_msg)
@@ -179,95 +179,92 @@ class Peer(Runner):
             print("{}: {}".format(k, v))
 
     def upload(self):
-        # receive the request info fileInfo["chunkFileName"] (the chunk name)
-        data_from_requester = self.connect.recv(1024)
+        while True:
+            # receive the request info fileInfo{ "fileName": "", "chunkFileName": "", "chunkNumber": int  }
+            ## data_from_requester = self.connect.recv(1024) [TCP]
+            data_from_requester, requesterAddr = self.listening_socket.recvfrom(1024) #[UDP]
 
-        if data_from_requester:
-            fileInfo = json.loads(data_from_requester)
-            print ("Requesting following chunk: " + fileInfo["chunkFileName"])
+            print(json.loads(data_from_requester))
 
-            main_file_name = fileInfo["fileName"]
-            chunk_file_name = fileInfo["chunkFileName"];
-            chunk_number = int(fileInfo["chunkNumber"]);
+            if data_from_requester:
+                fileInfo = json.loads(data_from_requester)
+                print ("[SENDER] => Requesting following chunk: " + fileInfo["chunkFileName"])
 
-            print(main_file_name)
+                main_file_name = fileInfo["fileName"]
+                chunk_file_name = fileInfo["chunkFileName"];
+                chunk_number = int(fileInfo["chunkNumber"]);
 
-            path_directory = os.path.join(self.directory, chunk_file_name)
-            file_path_directory = os.path.join(self.directory, main_file_name)
+                print("[SENDER] => " + main_file_name)
 
-            if os.path.isfile(file_path_directory):
-            	message = {}
-                message["message_type"] = "FULL_FILE_EXISTS"
-                message["chunkFileSize"] = os.path.getsize(file_path_directory)
+                chunk_directory = os.path.join(self.directory, chunk_file_name)
+                full_file_directory = os.path.join(self.directory, main_file_name)
 
-                self.connect.send(json.dumps(message))
+                # if the owner has the full file, just take that part of the file chunk from the full file. DO NOT SEND THE ENTIRE FILE!
+                if os.path.isfile(full_file_directory):
+                    message = {}
+                    message["message_type"] = "FULL_FILE_EXISTS"
+                    #message["chunkFileSize"] = self.chunk_size # os.path.getsize(full_file_directory) # send the chunk size that you are sending to the downloader
 
-                response_data_from_requester = self.connect.recv(1024)
-                requester_response = json.loads(response_data_from_requester)
+                    ## self.connect.send(json.dumps(message)) #[TCP]
+                    self.listening_socket.sendto(json.dumps(message),requesterAddr) #[UDP]
 
-                if requester_response["message_type"] == "OK":
-                    with open(file_path_directory, 'rb') as file_name:
-                    	print("sending...")
-                        file_name.seek(0)
-                        bytesToSend = file_name.read(256)
+                    # response_data_from_requester = self.connect.recv(1024) #[TCP]
+                    response_data_from_requester, requesterAddr = self.listening_socket.recvfrom(1024)
+                    requester_response = json.loads(response_data_from_requester)
 
-                        self.connect.send(bytesToSend)
+                    if requester_response["message_type"] == "OK":
+                        with open(full_file_directory, 'rb') as file_name:
+                            totalBytesSent = 0
+                            print("[SENDER] => sending...")
+                            file_name.seek(chunk_number * self.chunk_size)
+                            bytesToSend = file_name.read(self.chunk_size) # for UDP, just read the entire chunk size. No need to go by 256 cause you want to send entire chunk in one go
 
-                        while bytesToSend != "":
-                            bytesToSend = file_name.read(256)
-                            self.connect.send(bytesToSend)
+                            self.listening_socket.sendto(bytesToSend, requesterAddr)
+                            print("[SENDER] => Done Sending a chunk though I have a full file.")
 
-                        file_name.close()
-                        print("Done.")
+                elif os.path.isfile(chunk_directory):
+                    message = {}
+                    message["message_type"] = "FILE_EXISTS"
+                    # message["chunkFileSize"] = os.path.getsize(chunk_directory) # in this case we are sending the chunk file size because different chunk may have different size(DO NOT ASSUME THAT THE CHUNK SIZE IS CONSISTENT ACROSS NETWORK)
 
-            elif os.path.isfile(path_directory):
-                message = {}
-                message["message_type"] = "FILE_EXISTS"
-                message["chunkFileSize"] = os.path.getsize(path_directory)
+                    self.listening_socket.sendto(json.dumps(message), requesterAddr)
 
-                self.connect.send(json.dumps(message))
+                    response_data_from_requester, requesterAddr = self.listening_socket.recvfrom(1024)
+                    requester_response = json.loads(response_data_from_requester)
+                    if requester_response["message_type"] == "OK":
+                        with open(chunk_directory, 'rb') as file_name:
+                            print("sending...")
+                            bytesToSend = file_name.read(self.chunk_size)
+                            self.listening_socket.sendto(bytesToSend, requesterAddr) # send once, ASSUMING that the file chunk size is less than that size at which fragmentation will happen (i.e.: chunkFileSize < 1500)
 
-                response_data_from_requester = self.connect.recv(1024)
-                requester_response = json.loads(response_data_from_requester)
-                if requester_response["message_type"] == "OK":
-                    with open(path_directory, 'rb') as file_name:
-                    	print("sending...")
-                    	bytesToSend = file_name.read(256)
-                        self.connect.send(bytesToSend)
-
-                        while bytesToSend != "":
-                            bytesToSend = file_name.read(256)
-                            self.connect.send(bytesToSend)
-
-                        file_name.close()
-                        print("Done")
-            else:
-                self.connect.send(json.dumps({"message_type":"NO_EXISTS"}))
+                            # file_name.close() # you don't need to close the FILE if you use "with open()"
+                            print("[SENDER] => Done sending a Chunk")
+                else:
+                    # self.connect.send(json.dumps({"message_type":"NO_EXISTS"})) #[TCP]
+                    self.listening_socket.sendto(json.dumps({"message_type":"NO_EXISTS"}), requesterAddr) #[UDP]
 
 
     def download(self, filename):
         """
-        Downloads the file with this checksum from other Peers in the network
+        Downloads the file with this filename from other Peers in the network
 
         Process is transparent to the user. Peer program decides which other
         Peer to download from, as well as the chunks to request.
         """
 
-        full_file_directory = os.path.join(self.directory, filename)
+        full_file_directory = os.path.join(self.directory, filename)  
+
+        # check if I already have the full file. IF YES: quit downloading.
+        if os.path.isfile(full_file_directory):
+            return;
 
         requested_from_owner_index = []
 
-        sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # query the tracker who has the chucks to the file by supplying the filename / checksum
-        # message = { "message_type": "QUERY_FILE", "filename": filename }
-        # reply = self.send_message_to_tracker(message)
+        # query the tracker on who has the chucks to the file by supplying the filename / checksum
         message = {}
         message["message_type"] = "QUERY_FILE"
         message["filename"] = filename
         reply = self.send_message_to_tracker(message)
-
-        print(reply)
 
         # Handle "file not found"
         if reply["message_type"] == "QUERY_FILE_ERROR":
@@ -275,11 +272,19 @@ class Peer(Runner):
             return
 
         # chunks = {chunk#: ["ip:port", "ip:port"], chunk#: ["ip:port"]}
-        for key, chunkOwners in reply["chunks"].items():
-            chunk_file_name = filename + "." + key + ".chunk"
-            number_of_owners = len(chunkOwners)
+        for key, chunkOwners in reply["chunks"].items(): # looping through each chunk (NOTE: the start of chunk number may not be 0! [i.e.] it can be 1 or 2 or 3 or ...)
+            # TCP
+            # sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # need to recreate a new socket everytime because you cant connect to the same socket(in the case where the next chuck is own by the same owner at the same port) which you just closed it (see just before the for-loop loops again)
+            
+            #create a UDP socket
+            sending_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #[UDP]  
 
-            if os.path.isfile(full_file_directory):
+            chunk_file_name = filename + "." + key + ".chunk"
+            number_of_owners = len(chunkOwners) # number of owners of the current chunk
+            chunk_file_directory = os.path.join(self.directory, chunk_file_name)
+
+            #check if I already have that chunk file already. IF YES: process next chunk in line
+            if os.path.isfile(chunk_file_directory):
                 continue;
 
             else:
@@ -294,77 +299,93 @@ class Peer(Runner):
 
                     randomHostIPandPort = chunkOwners[randomHostIndex].split(":")
 
-                    owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1]))
+                    owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
                     print("Requesting from " + str(owner_address))
-                    sending_socket.connect(owner_address)
+                    
+                    # sending_socket.connect(owner_address) # connect with the owner ip & socket [TCP]
+                    # sending_socket.bind(owner_address)
 
                     try:
                         message = {}
                         message["fileName"] = str(filename)
-                        message["chunkFileName"] = chunk_file_name
+                        message["chunkFileName"] = chunk_file_name # <filename>.<chunk#>.chunk
                         message["chunkNumber"] = int(key)
 
-                        sending_socket.send(json.dumps(message)) # send the file info message to the owner
-                        ownerResponse = sending_socket.recv(1024)
+                        # sending_socket.send(json.dumps(message)) # send the file info message to the owner [TCP]
+                        
+                        sending_socket.sendto(json.dumps(message), owner_address) #[UDP]
+                        
+                        # ownerResponse = sending_socket.recv(1024) # [TCP]
+                        ownerResponse, ownerAddr = sending_socket.recvfrom(1024)
                         received_data_from_owner = json.loads(ownerResponse)
 
-                        # received_data_from_owner['message_type']:string, received_data_from_owner['chunkFileSize']:int
-                        if received_data_from_owner["message_type"] == "FULL_FILE_EXISTS":
-                            chunk_file_size = received_data_from_owner["chunkFileSize"]
+                        reply_message = {}
+                        reply_message["message_type"] = "OK"
+                        sending_socket.sendto(json.dumps(reply_message), ownerAddr) #aight! send it over owner!
 
-                            reply_message = {}
-                            reply_message["message_type"] = "OK"
-                            sending_socket.send(json.dumps(reply_message)) #aight! send it over
+                        chunk_file_directory = os.path.join(self.directory, chunk_file_name)
 
-                            new_chunk_file = open(full_file_directory, 'wb')
-                            chunk_data_from_owner = sending_socket.recv(256)
-                            total_received = len(chunk_data_from_owner)
+                        with open(chunk_file_directory, 'wb') as new_chunk_file:
+                            chunk_data_from_owner, ownerAddr = sending_socket.recvfrom(self.chunk_size)
 
                             new_chunk_file.write(chunk_data_from_owner)
 
-                            while total_received < chunk_file_size:
-                                chunk_data_from_owner = sending_socket.recv(256)
-                                total_received += len(chunk_data_from_owner)
-                                new_chunk_file.write(chunk_data_from_owner)
+                        # update tracker
+                        self.register_as_peer()
 
-                            new_chunk_file.close()
-
-                            # update tracker
-                            self.register_as_peer()
-
-                        elif received_data_from_owner["message_type"] == "FILE_EXISTS":
-                            chunk_file_size = received_data_from_owner["chunkFileSize"]
-
-                            reply_message = {}
-                            reply_message["message_type"] = "OK"
-                            sending_socket.send(json.dumps(reply_message)) #aight! send it over
-
-                            chunk_file_directory = os.path.join(self.directory, chunk_file_name)
-
-                            new_chunk_file = open(chunk_file_directory, 'wb')
-                            chunk_data_from_owner = sending_socket.recv(256)
-                            total_received = len(chunk_data_from_owner)
-
-                            new_chunk_file.write(chunk_data_from_owner)
-
-                            while total_received < chunk_file_size:
-                                chunk_data_from_owner = sending_socket.recv(256)
-                                total_received += len(chunk_data_from_owner)
-                                new_chunk_file.write(chunk_data_from_owner)
-
-                            new_chunk_file.close()
-
-                            # update tracker
-                            self.register_as_peer()
-
-                        else:
-                            continue
+                        # else:
+                        #     continue
 
 
                     except:
                         sending_socket.close()
 
-        sending_socket.close()
+            requested_from_owner_index = [] # reset the array of requested hosts
+
+        # combine all the chunks into one main file. NOTE: here we are assuming that the loop that we've just gone through the chunks data sent by the tracker is absolute and TRUE. (i.e.: Tracker has provided us with all the possible chunks that the file should have)
+        self.combine_chunks(filename)
+
+        return
+
+    def combine_chunks(self, filename):
+        message = {}
+        message["message_type"] = "QUERY_FILE"
+        message["filename"] = filename
+        reply = self.send_message_to_tracker(message)
+
+        # Handle "file not found"
+        if reply["message_type"] == "QUERY_FILE_ERROR":
+            print(reply["error"])
+            return
+
+        numberOfKeys = len(reply["chunks"].keys())
+        chunkIndex = 0
+
+        new_file_directory = os.path.join(self.directory, filename)
+
+        while(chunkIndex < numberOfKeys):
+            if str(chunkIndex) in reply["chunks"]:
+                chunk_file_name = filename + "." + str(chunkIndex) + ".chunk"
+                chunk_file_directory = os.path.join(self.directory, chunk_file_name)
+
+                with open(new_file_directory, 'ab') as new_file:
+                    with open(chunk_file_directory, 'rb') as chunk_file:
+                        new_file.write(chunk_file.read(self.chunk_size))
+
+                chunkIndex+=1
+
+                if(chunkIndex == numberOfKeys):
+                    self.removeAllAssociatedChunks(filename)
+
+            else:
+                break
+        return
+
+    def removeAllAssociatedChunks(self, filename):
+        path = os.path.join(self.directory, filename+".*"+".chunk")
+        for filename in glob.glob(path):
+            os.remove(filename)
+        return
 
     def hole_punching(self):
         print("Punching a hole...")
@@ -378,23 +399,28 @@ class Peer(Runner):
 
     def listen_for_request(self):
     	try:
-        	self.listening_socket.bind(("", self.port))
+            # self.listening_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.listening_socket.bind(('', self.port))
         except socket.error as msg:
             print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
             sys.exit()
         print('Socket bind complete')
 
-        self.listening_socket.listen(10)
-        print("Socket now listening to any incoming request")
-
-        thread = threading.Thread(target=self.process_thread, args=())
+        # self.listening_socket.listen(10) #[TCP]
+        # print("Socket now listening to any incoming request") #[TCP]
+        
+        # thread = threading.Thread(target=self.process_thread, args=()) [TCP]
+        # self.thread_array.append(thread) [TCP]
+        # thread.start() [TCP]
+        
+        thread = threading.Thread(target=self.upload, args=())
         self.thread_array.append(thread)
         thread.start()
 
     def process_thread(self):
     	while True:
-            self.connect, neighbor_addr = self.listening_socket.accept()
-            print("neighbor connedted ip:<" + str(neighbor_addr) + ">")
+            self.connect, neighbor_addr = self.listening_socket.accept() #[TCP]
+            print("neighbor connedted ip:<" + str(neighbor_addr) + ">") #[TCP]
             thread = threading.Thread(target=self.upload)
             self.thread_array.append(thread)
             thread.start()
@@ -490,6 +516,6 @@ Welcome to P2P Client. Please choose one of the following commands:
     def stop(self):
         print("Stopping peer")
 
-        for thread in thread_array:
-        	thread.exit()
-        # self.listening_socket.close()
+        # for thread in self.thread_array:
+        # 	thread.exit()
+        self.listening_socket.close()
