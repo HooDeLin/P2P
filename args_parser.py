@@ -35,7 +35,7 @@ def parse_args(system_arguments):
         if flag == "":
             if arg in supported_flags:
                 if arg == "--hole-punching":
-                    settings["hole-punching"] == True
+                    settings["hole-punching"] = True
                 else:
                     flag = arg
             else:
