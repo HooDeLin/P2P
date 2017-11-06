@@ -209,6 +209,7 @@ class Peer(Runner):
                 actual_data = data_received[10:]
                 with open(chunk_file_directory, 'wb') as new_chunk_file:
                     new_chunk_file.write(actual_data)
+                self.download(file_name)
             # print(json.loads(data_from_requester))
             #
             # if data_from_requester:
@@ -298,8 +299,12 @@ class Peer(Runner):
         chunk_numbers = []
         for key, chunkOwners in reply["chunks"].items():
             if int(key) not in available_chunks:
-                chunks_needed[key] = chunkOwners
+                chunks_needed[key] = chunkOwners # { chunk#: [ (ip:port), (ip:port), ... ], chunk#: [ ... ], ... }
                 chunk_numbers.append(key)
+
+        if not chunk_numbers: # if all the chunks are available in our directory, just assemble them and Done!
+            self.combine_chunks(filename)
+            return
 
         file_download_info = {"chunks_needed": chunks_needed, "filename": reply["filename"]}
         file_id = len(self.file_download_process_info)
@@ -314,7 +319,7 @@ class Peer(Runner):
         message["message_type"] = "REQUEST_FILE_CHUNK"
         message["file_download_process_id"] = file_id
         message["file_name"] = str(filename)
-        message["chunk_number"] = int(key)
+        message["chunk_number"] = int(chunk_numbers[0])
         self.listening_socket.sendto(json.dumps(message), owner_address)
 
     def combine_chunks(self, filename):

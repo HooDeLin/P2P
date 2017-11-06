@@ -3,7 +3,9 @@ import glob
 
 
 def get_chunk_number_from_chunk_filename(filename):
-    return int(filename.split(".")[len(filename) - 2])
+	splitNames = filename.split(".")
+	totalSplits = len(splitNames)
+	return int(splitNames[totalSplits - 2])
 
 def get_all_chunk_number_available(directory, filename):
     path = os.path.join(directory, filename+".*"+".chunk")
