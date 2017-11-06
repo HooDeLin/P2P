@@ -415,8 +415,8 @@ class Peer(Runner):
         if nat_type == "Symmetric NAT":
             print("You are using Symmetric NAT, not handling that")
             exit()
-        print("Hole punched: Your IP is " + str(self.external_ip) + " and your port number is " + str(self.external_port))
         self.external_signal_port = external_port
+        print("Hole punched: Your IP is " + str(self.external_ip) + " and your port number is " + str(self.external_signal_port))
 
     def listen_for_request(self):
     	try:
