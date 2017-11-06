@@ -65,7 +65,7 @@ def parse_args(system_arguments):
                     sys.exit("Directory does not exist")
             if flag == "--signal-port":
                 if portValid(arg):
-                    settings["signal-port"] = arg
+                    settings["signal-port"] = int(arg)
             flag = ""
 
     # Arguments are left hanging
