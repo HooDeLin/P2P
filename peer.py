@@ -20,7 +20,7 @@ class Peer(Runner):
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
         self.directory = settings["peer-directory"]
-        self.hole_punching = "hole-punching" in settings
+        self.hole_punch = "hole-punching" in settings
         self.tracker_signal_port = settings["tracker-signal-port"]
         self.signal_port = settings["signal-port"]
         self.external_ip = None
@@ -106,7 +106,7 @@ class Peer(Runner):
         #     "message_type": "INFORM_AND_UPDATE",
         # }
         info = {}
-        if self.hole_punching:
+        if self.hole_punch:
             info["source_ip"] = self.external_ip
             info["source_port"] = self.external_port
             info["signal_port"] = self.external_signal_port
@@ -271,7 +271,7 @@ class Peer(Runner):
                     random_host_index = randint(0, len(chunk_owners)-1)
                     randomHostIPandPort = chunk_owners[random_host_index].split(":")
                     owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
-                    if self.hole_punching:
+                    if self.hole_punch:
                         hole_punch_to_peer(owner_address)
                     if owner_address in self.known_peers_behind_nat:
                         print("Peer is behind NAT...")
@@ -339,7 +339,7 @@ class Peer(Runner):
         random_host_index = randint(0, len(chunk_owners)-1)
         randomHostIPandPort = chunk_owners[random_host_index].split(":")
         owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
-        if self.hole_punching:
+        if self.hole_punch:
             hole_punch_to_peer(owner_address)
         if owner_address in self.known_peers_behind_nat:
             print("Peer is behind NAT...")
@@ -456,7 +456,7 @@ class Peer(Runner):
         Tells the Tracker that you are exiting the network
         """
         message = {}
-        if self.hole_punching:
+        if self.hole_punch:
             message['source_ip'] = self.external_ip
             message['source_port'] = self.external_port
         else:
@@ -524,13 +524,13 @@ Welcome to P2P Client. Please choose one of the following commands:
 
     def start_peer(self):
         # Punch a hole
-        if self.hole_punching:
+        if self.hole_punch:
             self.hole_punching()
             self.tracker_hole_punching()
         # # Start a listening socket thread
         self.listen_for_request()
 
-        if self.hole_punching:
+        if self.hole_punch:
             # listen from signal port TODO
             self.listen_for_tracker_signal()
         # # Register as peer
