@@ -295,7 +295,7 @@ class Peer(Runner):
                         print("Peer is behind NAT...")
                         message["message_type"] = "REQUEST_FILE_CHUNK_NAT"
                         message["filename"] = file_name
-                        message["file_download_process_id"] = file_id
+                        message["file_download_process_id"] = int(file_process_id[0])
                         message["file_name"] = file_name
                         message["chunk_number"] = int(chunk_numbers[0])
                         if self.hole_punch:
