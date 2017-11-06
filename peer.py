@@ -22,7 +22,7 @@ class Peer(Runner):
         self.hole_punching = "hole-punching" in settings
         self.external_ip = None
         self.external_port = None
-        self.chunk_size = 1024 #byte
+        self.chunk_size = 1014 #byte
         self.socket_listening_thread = None
         # List of (formatted) files that the Peer is sharing
         self.files = []
@@ -201,21 +201,22 @@ class Peer(Runner):
             except: # This is a file chunk that you are receiving
                 file_process_id = data_received[0:10].split(",")
                 file_download_process = self.file_download_process_info[int(file_process_id[0])]
-                print(file_download_process)
-                print("-------------")
                 file_name = file_download_process["filename"]
                 chunk_number = int(file_process_id[1])
                 chunk_file_directory = os.path.join(self.directory, file_name+ "." +str(chunk_number)+".chunk")
                 actual_data = data_received[10:]
                 with open(chunk_file_directory, 'wb') as new_chunk_file:
                     new_chunk_file.write(actual_data)
-                file_download_process["chunks_needed"].pop(file_process_id[0])
+                print("----------")
+                print(file_process_id)
+                print(file_download_process)
+                print("----------")
+                file_download_process["chunks_needed"].pop(file_process_id[1])
                 self.file_download_process_info[int(file_process_id[0])] = file_download_process
                 print(file_download_process)
                 if len(file_download_process["chunks_needed"]) == 0:
                     self.combine_chunks(file_name)
                 else:
-                    print("==================")
                     chunk_numbers = []
                     for key in file_download_process["chunks_needed"]:
                         chunk_numbers.append(key)
