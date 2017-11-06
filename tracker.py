@@ -138,11 +138,11 @@ class Tracker(Runner):
                 self.file_details.pop(file_name)
         return
 
-    def send_signal(self, msg):
+    def send_signal(self, msg, addr):
         signal_msg = {}
         dst_addr = msg["owner_address"].split(":")
         signal_msg["message_type"] = "REQUEST_FILE_CHUNK_SIGNAL"
-        signal_msg["receiver_address"] = msg["self_address"]
+        signal_msg["receiver_address"] = addr[0] + ":" + str(addr[1])
         signal_msg["filename"] = msg["filename"]
         signal_msg["file_download_process_id"] = msg["file_download_process_id"]
         signal_msg["chunk_number"] = msg["chunk_number"]
@@ -163,7 +163,7 @@ class Tracker(Runner):
         elif msg["message_type"] == "QUERY_FILE":
             return self.create_file_reply(msg["filename"])
         elif msg["message_type"] == "REQUEST_FILE_CHUNK_NAT":
-            self.send_signal(msg)
+            self.send_signal(msg, addr)
             return self.create_ack_reply()
         elif msg["message_type"] == "EXIT":
             self.lock.acquire()

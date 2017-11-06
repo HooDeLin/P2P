@@ -273,13 +273,23 @@ class Peer(Runner):
                     owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
                     if self.hole_punching:
                         hole_punch_to_peer(owner_address)
-                    print("Requesting from " + str(owner_address))
-                    message = {}
-                    message["message_type"] = "REQUEST_FILE_CHUNK"
-                    message["file_download_process_id"] = int(file_process_id[0])
-                    message["file_name"] = str(file_name)
-                    message["chunk_number"] = int(chunk_numbers[0])
-                    self.listening_socket.sendto(json.dumps(message), owner_address)
+                    if owner_address in self.known_peers_behind_nat:
+                        print("Peer is behind NAT...")
+                        message["message_type"] = "REQUEST_FILE_CHUNK_NAT"
+                        message["filename"] = str(filename)
+                        message["file_download_process_id"] = file_id
+                        message["file_name"] = str(filename)
+                        message["chunk_number"] = int(chunk_numbers[0])
+                        message["owner_address"] = chunk_owners[random_host_index]
+                        self.send_message_to_tracker(message)
+                    else:
+                        print("Requesting from " + str(owner_address))
+                        message = {}
+                        message["message_type"] = "REQUEST_FILE_CHUNK"
+                        message["file_download_process_id"] = int(file_process_id[0])
+                        message["file_name"] = str(file_name)
+                        message["chunk_number"] = int(chunk_numbers[0])
+                        self.listening_socket.sendto(json.dumps(message), owner_address)
 
 
     def download(self, filename): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
@@ -331,13 +341,23 @@ class Peer(Runner):
         owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
         if self.hole_punching:
             hole_punch_to_peer(owner_address)
-        print("Requesting from " + str(owner_address))
-        message = {}
-        message["message_type"] = "REQUEST_FILE_CHUNK"
-        message["file_download_process_id"] = file_id
-        message["file_name"] = str(filename)
-        message["chunk_number"] = int(chunk_numbers[0])
-        self.listening_socket.sendto(json.dumps(message), owner_address)
+        if owner_address in self.known_peers_behind_nat:
+            print("Peer is behind NAT...")
+            message["message_type"] = "REQUEST_FILE_CHUNK_NAT"
+            message["filename"] = str(filename)
+            message["file_download_process_id"] = file_id
+            message["file_name"] = str(filename)
+            message["chunk_number"] = int(chunk_numbers[0])
+            message["owner_address"] = chunk_owners[random_host_index]
+            self.send_message_to_tracker(message)
+        else:
+            print("Requesting from " + str(owner_address))
+            message = {}
+            message["message_type"] = "REQUEST_FILE_CHUNK"
+            message["file_download_process_id"] = file_id
+            message["file_name"] = str(filename)
+            message["chunk_number"] = int(chunk_numbers[0])
+            self.listening_socket.sendto(json.dumps(message), owner_address)
 
     def combine_chunks(self, filename):
         message = {}
