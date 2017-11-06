@@ -57,7 +57,7 @@ class Tracker(Runner):
             peer_id = addr[0] + ":" + str(msg["source_port"])
         if "signal_port" in msg: # If you send a signal port, you are behind NAT
             self.public_peer_set.add(peer_id)
-            self.public_peer_signal["peer_id"] = msg["signal_port"]
+            self.public_peer_signal[peer_id] = msg["signal_port"]
         self.peer_set.add(peer_id)
         for peer_files in msg["files"]:
             file_name = peer_files["filename"]
