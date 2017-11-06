@@ -147,7 +147,7 @@ class Tracker(Runner):
             return self.create_ack_reply()
 
     def handle_connection(self, conn, addr):
-        data = conn.recv(1048576) # recv 1MB
+        data = conn.recv(1024)
         print 'Received data: ' + data
         if data:
             return_data = self.parse_msg(data, addr)
