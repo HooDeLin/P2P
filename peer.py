@@ -214,7 +214,7 @@ class Peer(Runner):
                         padding = 10 - len(bytes_array)
                         for _ in range(padding): # Heck it works
                             bytes_array.append(",")
-                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, (receiver_address[0], int(receiver_address[1])))
                 else:
                     with open(os.path.join(self.directory, filename + "." + str(chunk_number) + ".chunk")) as chunk_file:
                         chunk_file_bytes = chunk_file.read(self.chunk_size)
