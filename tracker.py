@@ -12,6 +12,7 @@ class Tracker(Runner):
 
     def __init__(self, settings):
         self.public_peer_set = Set()
+        self.public_peer_signal = {}
         self.peer_set = Set()
         self.file_details = {}
         self.file_owners = {}
@@ -56,6 +57,7 @@ class Tracker(Runner):
             peer_id = addr[0] + ":" + str(msg["source_port"])
         if "signal_port" in msg: # If you send a signal port, you are behind NAT
             self.public_peer_set.add(peer_id)
+            self.public_peer_signal["peer_id"] = msg["signal_port"]
         self.peer_set.add(peer_id)
         for peer_files in msg["files"]:
             file_name = peer_files["filename"]
@@ -121,6 +123,8 @@ class Tracker(Runner):
             peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
         else:
             peer_id = addr[0] + ":" + str(msg["source_port"])
+        if peer_id in self.public_peer_signal:
+            self.public_peer_signal.pop(peer_id)
         self.public_peer_set.discard(peer_id)
         self.peer_set.discard(peer_id)
         file_that_has_peer_as_solo_owners = []
@@ -146,7 +150,7 @@ class Tracker(Runner):
         signal_msg["filename"] = msg["filename"]
         signal_msg["file_download_process_id"] = msg["file_download_process_id"]
         signal_msg["chunk_number"] = msg["chunk_number"]
-        self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(dst_addr[1])))
+        self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(self.public_peer_signal[dst_addr[0]])))
 
     def parse_msg(self, data, addr):
         msg = json.loads(data)

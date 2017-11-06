@@ -195,6 +195,7 @@ class Peer(Runner):
             print("{}: {}".format(k, v))
 
     def signal_listening(self):
+        print("Sending bogus packet for tracker: " + self.tracker_address + ":" + str(self.tracker_signal_port))
         self.signal_socket.sendto(json.dumps({"message_type": "GIBERRISH"}), (self.tracker_address, int(self.tracker_signal_port)))
         while True:
             data_received, _ = self.signal_socket.recvfrom(1024)
