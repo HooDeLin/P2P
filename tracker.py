@@ -11,6 +11,7 @@ from threading import Lock
 class Tracker(Runner):
 
     def __init__(self, settings):
+        self.public_peer_set = Set()
         self.peer_set = Set()
         self.file_details = {}
         self.file_owners = {}
@@ -53,6 +54,8 @@ class Tracker(Runner):
             peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
         else:
             peer_id = addr[0] + ":" + str(msg["source_port"])
+        if "signal_port" in msg: # If you send a signal port, you are behind NAT
+            self.public_peer_set.add(peer_id)
         self.peer_set.add(peer_id)
         for peer_files in msg["files"]:
             file_name = peer_files["filename"]
@@ -108,6 +111,7 @@ class Tracker(Runner):
                "checksum": checksum,
                "chunks": chunks,
                "num_of_chunks": num_of_chunks,
+               "peer_behind_nat": list(public_peer_set)
         }
         return json.dumps(msg)
 
@@ -117,6 +121,7 @@ class Tracker(Runner):
             peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
         else:
             peer_id = addr[0] + ":" + str(msg["source_port"])
+        self.public_peer_set.discard(peer_id)
         self.peer_set.discard(peer_id)
         file_that_has_peer_as_solo_owners = []
         file_owner_that_needs_to_be_removed = []

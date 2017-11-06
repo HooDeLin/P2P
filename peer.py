@@ -108,6 +108,7 @@ class Peer(Runner):
         if self.hole_punching:
             info["source_ip"] = self.external_ip
             info["source_port"] = self.external_port
+            info["signal_port"] = self.external_signal_port
         else:
             info["source_port"] = self.port
         info["files"] = self.files
