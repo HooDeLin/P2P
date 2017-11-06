@@ -17,15 +17,18 @@ class Tracker(Runner):
         self.chunk_owners = {}
         self.lock = Lock()
         self.port = settings["port"]
-        self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.signal_port = settings["signal-port"]
+        self.signal_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         print ("Socket created")
         try:
-            self.listening_socket.bind(("", settings["port"]))
+            self.peer_socket.bind(("", settings["port"]))
+            self.signal_socket.bind(("", settings["signal-port"]))
         except socket.error as msg:
             print 'Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
             sys.exit()
         print 'Socket bind complete'
-        self.listening_socket.listen(10)
+        self.peer_socket.listen(10)
         print 'Socket now listening'
 
     def create_not_yet_implemented_reply(self):
@@ -108,8 +111,12 @@ class Tracker(Runner):
         }
         return json.dumps(msg)
 
-    def handle_exit_message(self, msg):
-        peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
+    def handle_exit_message(self, msg, addr):
+        peer_id = ""
+        if "source_ip" in msg:
+            peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
+        else:
+            peer_id = addr[0] + ":" + str(msg["source_port"])
         self.peer_set.discard(peer_id)
         file_that_has_peer_as_solo_owners = []
         file_owner_that_needs_to_be_removed = []
@@ -126,6 +133,16 @@ class Tracker(Runner):
                 self.file_details.pop(file_name)
         return
 
+    def send_signal(self, msg):
+        signal_msg = {}
+        dst_addr = msg["owner_address"].split(":")
+        signal_msg["message_type"] = "REQUEST_FILE_CHUNK_SIGNAL"
+        signal_msg["receiver_address"] = msg["self_address"]
+        signal_msg["filename"] = msg["filename"]
+        signal_msg["file_download_process_id"] = msg["file_download_process_id"]
+        signal_msg["chunk_number"] = msg["chunk_number"]
+        self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(dst_addr[1])))
+
     def parse_msg(self, data, addr):
         msg = json.loads(data)
         if "message_type" not in msg:
@@ -140,6 +157,9 @@ class Tracker(Runner):
             return self.create_list_of_files_reply()
         elif msg["message_type"] == "QUERY_FILE":
             return self.create_file_reply(msg["filename"])
+        elif msg["message_type"] == "REQUEST_FILE_CHUNK_NAT":
+            self.send_signal(msg)
+            return self.create_ack_reply()
         elif msg["message_type"] == "EXIT":
             self.lock.acquire()
             self.handle_exit_message(msg)
@@ -157,11 +177,11 @@ class Tracker(Runner):
 
     def start_tracker(self):
         while 1:
-            conn, addr = self.listening_socket.accept()
+            conn, addr = self.peer_socket.accept()
             t = Thread(target=self.handle_connection, args=(conn, addr))
             t.start()
-        self.listening_socket.close()
+        self.peer_socket.close()
 
     def stop(self):
         print("Stopping tracker")
-        self.listening_socket.close()
+        self.peer_socket.close()

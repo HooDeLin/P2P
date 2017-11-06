@@ -15,8 +15,8 @@ def portValid(port):
         return False
 
 def validSettings(settings):
-    tracker_settings = ["role", "port"]
-    peer_settings = ["role", "port", "tracker-address", "tracker-port", "peer-directory"]
+    tracker_settings = ["role", "port", "signal-port"]
+    peer_settings = ["role", "port", "tracker-address", "tracker-port", "peer-directory", "signal-port", "tracker-signal-port"]
     if "role" not in settings:
         return False
     if settings["role"] == "tracker":
@@ -29,7 +29,7 @@ def parse_args(system_arguments):
     settings = {};
     system_arguments = system_arguments[1:]
 
-    supported_flags = ["--role", "--port", "--tracker-address", "--tracker-port", "--peer-directory", "--hole-punching"]
+    supported_flags = ["--role", "--port", "--tracker-address", "--tracker-port", "--peer-directory", "--hole-punching", "--signal-port", "--tracker-signal-port"]
     flag = ""
     for arg in system_arguments:
         if flag == "":
@@ -63,6 +63,12 @@ def parse_args(system_arguments):
                     settings["peer-directory"] = arg
                 else:
                     sys.exit("Directory does not exist")
+            if flag == "--signal-port":
+                if portValid(arg):
+                    settings["signal-port"] = int(arg)
+            if flag == "--tracker-signal-port":
+                if portValid(arg):
+                    settings["tracker-signal-port"] = int(arg)
             flag = ""
 
     # Arguments are left hanging
