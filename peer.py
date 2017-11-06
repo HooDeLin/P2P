@@ -15,21 +15,27 @@ from random import randint
 class Peer(Runner):
     def __init__(self, settings):
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.signal_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.tracker_address = settings["tracker-address"]
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
         self.directory = settings["peer-directory"]
         self.hole_punching = "hole-punching" in settings
+        self.tracker_signal_port = settings["tracker-signal-port"]
+        self.signal_port = settings["signal-port"]
         self.external_ip = None
         self.external_port = None
+        self.external_signal_port = None
         self.chunk_size = 1014 #byte
         self.socket_listening_thread = None
+        self.signal_listening_thread = None
         # List of (formatted) files that the Peer is sharing
         self.files = []
         # List of (formatted) incomplete files that the Peer is sharing
         self.chunks = []
         self.file_download_process_info = []
         self.connect = None
+        self.known_peers_behind_nat = []
 
     def get_directory_files(self):
         # Returns a list of filenames in self.directory
@@ -103,6 +109,7 @@ class Peer(Runner):
         if self.hole_punching:
             info["source_ip"] = self.external_ip
             info["source_port"] = self.external_port
+            info["signal_port"] = self.external_signal_port
         else:
             info["source_port"] = self.port
         info["files"] = self.files
@@ -187,7 +194,43 @@ class Peer(Runner):
         for k, v in reply.items():
             print("{}: {}".format(k, v))
 
-    def upload(self):
+    def signal_listening(self):
+        while True:
+            data_received, _ = self.signal_socket.recvfrom(1024)
+            try:
+                message = json.loads(data_received)
+                if message["message_type"] == "REQUEST_FILE_CHUNK_SIGNAL":
+                    filename = message["filename"]
+                    chunk_number = message["chunk_number"]
+                    receiver_address = message["receiver_address"].split(":")
+                    if file_utils.has_file(self.directory, filename): # Has full file
+                        with open(os.path.join(self.directory, filename), "rb") as chunk_file:
+                            chunk_file.seek(chunk_number * self.chunk_size)
+                            chunk_file_bytes = chunk_file.read(self.chunk_size)
+                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                            padding = 10 - len(bytes_array)
+                            for _ in range(padding): # Heck it works
+                                bytes_array.append(",")
+                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                    else:
+                        with open(os.path.join(self.directory, filename + "." + str(chunk_number) + ".chunk")) as chunk_file:
+                            chunk_file_bytes = chunk_file.read(self.chunk_size)
+                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                            padding = 10 - len(bytes_array)
+                            for _ in range(padding): # Heck it works
+                                bytes_array.append(",")
+                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+            except:
+                print("There is an error listening to tracker signal")
+
+    def hole_punch_to_peer(owner_address):
+        # Called when self is behind NAT
+        # Sends a blank JSON to allow peer to connect to self.external_port
+        # Essentially creates a mapping in the NAT-enabled router
+        message = {}
+        self.listening_socket.sendto(json.dumps(message), owner_address)
+
+    def upload(self): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
         while True:
             # receive the request info fileInfo{ "fileName": "", "chunkFileName": "", "chunkNumber": int  }
             ## data_from_requester = self.connect.recv(1024) [TCP]
@@ -206,6 +249,14 @@ class Peer(Runner):
                             for _ in range(padding): # Heck it works
                                 bytes_array.append(",")
                             self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                    else:
+                        with open(os.path.join(self.directory, filename + "." + str(chunk_number) + ".chunk")) as chunk_file:
+                            chunk_file_bytes = chunk_file.read(self.chunk_size)
+                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                            padding = 10 - len(bytes_array)
+                            for _ in range(padding): # Heck it works
+                                bytes_array.append(",")
+                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
             except: # This is a file chunk that you are receiving
                 file_process_id = data_received[0:10].split(",")
                 file_download_process = self.file_download_process_info[int(file_process_id[0])]
@@ -215,10 +266,6 @@ class Peer(Runner):
                 actual_data = data_received[10:]
                 with open(chunk_file_directory, 'wb') as new_chunk_file:
                     new_chunk_file.write(actual_data)
-                print("----------")
-                print(file_process_id)
-                print(file_download_process)
-                print("----------")
                 file_download_process["chunks_needed"].pop(file_process_id[1])
                 self.file_download_process_info[int(file_process_id[0])] = file_download_process
                 print(file_download_process)
@@ -232,16 +279,28 @@ class Peer(Runner):
                     random_host_index = randint(0, len(chunk_owners)-1)
                     randomHostIPandPort = chunk_owners[random_host_index].split(":")
                     owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
-                    print("Requesting from " + str(owner_address))
-                    message = {}
-                    message["message_type"] = "REQUEST_FILE_CHUNK"
-                    message["file_download_process_id"] = int(file_process_id[0])
-                    message["file_name"] = str(file_name)
-                    message["chunk_number"] = int(chunk_numbers[0])
-                    self.listening_socket.sendto(json.dumps(message), owner_address)
+                    if self.hole_punching:
+                        hole_punch_to_peer(owner_address)
+                    if owner_address in self.known_peers_behind_nat:
+                        print("Peer is behind NAT...")
+                        message["message_type"] = "REQUEST_FILE_CHUNK_NAT"
+                        message["filename"] = str(filename)
+                        message["file_download_process_id"] = file_id
+                        message["file_name"] = str(filename)
+                        message["chunk_number"] = int(chunk_numbers[0])
+                        message["owner_address"] = chunk_owners[random_host_index]
+                        self.send_message_to_tracker(message)
+                    else:
+                        print("Requesting from " + str(owner_address))
+                        message = {}
+                        message["message_type"] = "REQUEST_FILE_CHUNK"
+                        message["file_download_process_id"] = int(file_process_id[0])
+                        message["file_name"] = str(file_name)
+                        message["chunk_number"] = int(chunk_numbers[0])
+                        self.listening_socket.sendto(json.dumps(message), owner_address)
 
 
-    def download(self, filename):
+    def download(self, filename): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
         """
         Downloads the file with this filename from other Peers in the network
 
@@ -264,6 +323,9 @@ class Peer(Runner):
             print(reply["error"])
             return
 
+        # Update list of peers known to be behind NAT
+        self.known_peers_behind_nat = reply["peer_behind_nat"]
+
         # Create process info for the file downloading
         available_chunks = file_utils.get_all_chunk_number_available(self.directory, filename)
         chunks_needed = {}
@@ -285,13 +347,25 @@ class Peer(Runner):
         random_host_index = randint(0, len(chunk_owners)-1)
         randomHostIPandPort = chunk_owners[random_host_index].split(":")
         owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
-        print("Requesting from " + str(owner_address))
-        message = {}
-        message["message_type"] = "REQUEST_FILE_CHUNK"
-        message["file_download_process_id"] = file_id
-        message["file_name"] = str(filename)
-        message["chunk_number"] = int(chunk_numbers[0])
-        self.listening_socket.sendto(json.dumps(message), owner_address)
+        if self.hole_punching:
+            hole_punch_to_peer(owner_address)
+        if owner_address in self.known_peers_behind_nat:
+            print("Peer is behind NAT...")
+            message["message_type"] = "REQUEST_FILE_CHUNK_NAT"
+            message["filename"] = str(filename)
+            message["file_download_process_id"] = file_id
+            message["file_name"] = str(filename)
+            message["chunk_number"] = int(chunk_numbers[0])
+            message["owner_address"] = chunk_owners[random_host_index]
+            self.send_message_to_tracker(message)
+        else:
+            print("Requesting from " + str(owner_address))
+            message = {}
+            message["message_type"] = "REQUEST_FILE_CHUNK"
+            message["file_download_process_id"] = file_id
+            message["file_name"] = str(filename)
+            message["chunk_number"] = int(chunk_numbers[0])
+            self.listening_socket.sendto(json.dumps(message), owner_address)
 
     def combine_chunks(self, filename):
         message = {}
@@ -343,6 +417,15 @@ class Peer(Runner):
         self.external_ip = external_ip
         self.external_port = external_port
 
+    def tracker_hole_punching(self):
+        print("Punching a hole for tracker signal...")
+        nat_type, external_ip, external_port = stun.get_ip_info("0.0.0.0", self.port)
+        if nat_type == "Symmetric NAT":
+            print("You are using Symmetric NAT, not handling that")
+            exit()
+        print("Hole punched: Your IP is " + str(self.external_ip) + " and your port number is " + str(self.external_port))
+        self.external_signal_port = external_port
+
     def listen_for_request(self):
     	try:
             # self.listening_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -353,6 +436,16 @@ class Peer(Runner):
         print('Socket bind complete')
         self.socket_listening_thread = threading.Thread(target=self.upload, args=())
         self.socket_listening_thread.start()
+
+    def listen_for_tracker_signal(self):
+        try:
+            self.signal_socket.bind(('', self.signal_port))
+        except socket.error as msg:
+            print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+            sys.exit()
+        print('Socket bind complete')
+        self.signal_listening_thread = threading.Thread(target=self.signal_listening, args=())
+        self.signal_listening_thread.start()
 
     def update_tracker_new_files(self):
         """
@@ -371,7 +464,11 @@ class Peer(Runner):
         Tells the Tracker that you are exiting the network
         """
         message = {}
-        message["source_port"] = self.port
+        if self.hole_punching:
+            message['source_ip'] = self.external_ip
+            message['source_port'] = self.external_port
+        else:
+            message["source_port"] = self.port
         message["message_type"] = "EXIT"
         self.send_message_to_tracker(message)
         print("Exiting...")
@@ -392,10 +489,10 @@ Welcome to P2P Client. Please choose one of the following commands:
    Usage: 1
 
 2. List all Peers possessing a file
-   Usage: 2 <file checksum>
+   Usage: 2 <file>
 
 3. Download file
-   Usage: 3 <file checksum>
+   Usage: 3 <file>
 
 4. Update Tracker of your new files and chunks
    Usage: 4
@@ -407,11 +504,15 @@ Welcome to P2P Client. Please choose one of the following commands:
         while True:
             print("# > ", end="")
             user_input = raw_input()
-            # try:
             input_lst = user_input.split(" ")
             if len(input_lst) > 2:
                 print(msg)
                 print("Invalid command")
+                continue
+            if not input_lst[0].isdigit():
+                print(msg)
+                print("Invalid command")
+                continue
             command = int(input_lst[0])
             filename = input_lst[1] if len(input_lst) > 1 else None
             if command == 1:
@@ -427,15 +528,21 @@ Welcome to P2P Client. Please choose one of the following commands:
             else:
                 print(msg)
                 print("Invalid command")
+                continue
 
     def start_peer(self):
         # Punch a hole
         if self.hole_punching:
             self.hole_punching()
+            self.tracker_hole_punching()
         # # Start a listening socket thread
         self.listen_for_request()
+
+        if self.hole_punching:
+            # listen from signal port TODO
+            self.listen_for_tracker_signal()
         # # Register as peer
-        self.register_as_peer()
+        self.register_as_peer() # Tell the tracker if we are behind a NAT, add signal port TODO
         # # Start the Text UI
         self.start_tui()
 
