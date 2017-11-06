@@ -1,13 +1,13 @@
 from __future__ import print_function
 import socket
-import threading
+# import threading
+import multiprocessing
 import sys
 import json
 import os, glob
 import hashlib
 import stun
 
-from recurring_thread import RecurringThread
 from runner import Runner
 from random import randint
 
@@ -22,6 +22,7 @@ class Peer(Runner):
         self.external_ip = None
         self.external_port = None
         self.chunk_size = 1024 #byte
+        self.socket_listening_thread = None
         # List of (formatted) files that the Peer is sharing
         self.files = []
         # List of (formatted) incomplete files that the Peer is sharing
@@ -252,7 +253,7 @@ class Peer(Runner):
         Peer to download from, as well as the chunks to request.
         """
 
-        full_file_directory = os.path.join(self.directory, filename)  
+        full_file_directory = os.path.join(self.directory, filename)
 
         # check if I already have the full file. IF YES: quit downloading.
         if os.path.isfile(full_file_directory):
@@ -275,9 +276,10 @@ class Peer(Runner):
         for key, chunkOwners in reply["chunks"].items(): # looping through each chunk (NOTE: the start of chunk number may not be 0! [i.e.] it can be 1 or 2 or 3 or ...)
             # TCP
             # sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # need to recreate a new socket everytime because you cant connect to the same socket(in the case where the next chuck is own by the same owner at the same port) which you just closed it (see just before the for-loop loops again)
-            
+
             #create a UDP socket
-            sending_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #[UDP]  
+            sending_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #[UDP]
+            # sending_socket = self.listening_socket
 
             chunk_file_name = filename + "." + key + ".chunk"
             number_of_owners = len(chunkOwners) # number of owners of the current chunk
@@ -301,7 +303,7 @@ class Peer(Runner):
 
                     owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
                     print("Requesting from " + str(owner_address))
-                    
+
                     # sending_socket.connect(owner_address) # connect with the owner ip & socket [TCP]
                     # sending_socket.bind(owner_address)
 
@@ -312,9 +314,9 @@ class Peer(Runner):
                         message["chunkNumber"] = int(key)
 
                         # sending_socket.send(json.dumps(message)) # send the file info message to the owner [TCP]
-                        
+
                         sending_socket.sendto(json.dumps(message), owner_address) #[UDP]
-                        
+
                         # ownerResponse = sending_socket.recv(1024) # [TCP]
                         ownerResponse, ownerAddr = sending_socket.recvfrom(1024)
                         received_data_from_owner = json.loads(ownerResponse)
@@ -408,14 +410,14 @@ class Peer(Runner):
 
         # self.listening_socket.listen(10) #[TCP]
         # print("Socket now listening to any incoming request") #[TCP]
-        
+
         # thread = threading.Thread(target=self.process_thread, args=()) [TCP]
         # self.thread_array.append(thread) [TCP]
         # thread.start() [TCP]
-        
-        thread = threading.Thread(target=self.upload, args=())
-        self.thread_array.append(thread)
-        thread.start()
+
+        self.socket_listening_thread = multiprocessing.Process(target=self.upload, args=())
+        # self.thread_array.append(thread)
+        self.socket_listening_thread.start()
 
     def process_thread(self):
     	while True:
@@ -515,7 +517,5 @@ Welcome to P2P Client. Please choose one of the following commands:
 
     def stop(self):
         print("Stopping peer")
-
-        # for thread in self.thread_array:
-        # 	thread.exit()
+        self.socket_listening_thread.terminate()
         self.listening_socket.close()
