@@ -405,13 +405,13 @@ class Peer(Runner):
         if nat_type == "Symmetric NAT":
             print("You are using Symmetric NAT, not handling that")
             exit()
-        print("Hole punched: Your IP is " + str(self.external_ip) + " and your port number is " + str(self.external_port))
         self.external_ip = external_ip
         self.external_port = external_port
+        print("Hole punched: Your IP is " + str(self.external_ip) + " and your port number is " + str(self.external_port))
 
     def tracker_hole_punching(self):
         print("Punching a hole for tracker signal...")
-        nat_type, external_ip, external_port = stun.get_ip_info("0.0.0.0", self.port)
+        nat_type, external_ip, external_port = stun.get_ip_info("0.0.0.0", self.signal_port)
         if nat_type == "Symmetric NAT":
             print("You are using Symmetric NAT, not handling that")
             exit()
