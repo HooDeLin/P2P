@@ -150,7 +150,7 @@ class Tracker(Runner):
         signal_msg["filename"] = msg["filename"]
         signal_msg["file_download_process_id"] = msg["file_download_process_id"]
         signal_msg["chunk_number"] = msg["chunk_number"]
-        self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(self.public_peer_signal[dst_addr[0]])))
+        self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(self.public_peer_signal[msg["owner_address"]])))
 
     def parse_msg(self, data, addr):
         msg = json.loads(data)
