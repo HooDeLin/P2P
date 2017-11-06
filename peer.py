@@ -15,15 +15,20 @@ from random import randint
 class Peer(Runner):
     def __init__(self, settings):
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.signal_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.tracker_address = settings["tracker-address"]
         self.tracker_port = settings["tracker-port"]
         self.port = settings["port"]
         self.directory = settings["peer-directory"]
         self.hole_punching = "hole-punching" in settings
+        self.tracker_signal_port = settings["tracker_signal_port"]
+        self.signal_port = settings["signal-port"]
         self.external_ip = None
         self.external_port = None
+        self.external_signal_port = None
         self.chunk_size = 1014 #byte
         self.socket_listening_thread = None
+        self.signal_listening_thread = None
         # List of (formatted) files that the Peer is sharing
         self.files = []
         # List of (formatted) incomplete files that the Peer is sharing
@@ -179,6 +184,35 @@ class Peer(Runner):
         for k, v in reply.items():
             print("{}: {}".format(k, v))
 
+    def signal_listening(self):
+        while True:
+            data_received, _ = self.signal_socket.recvfrom(1024)
+            try:
+                message = json.loads(data_received)
+                if message["message_type"] == "REQUEST_FILE_CHUNK_SIGNAL":
+                    filename = message["filename"]
+                    chunk_number = message["chunk_number"]
+                    receiver_address = message["receiver_address"].split(":")
+                    if file_utils.has_file(self.directory, filename): # Has full file
+                        with open(os.path.join(self.directory, filename), "rb") as chunk_file:
+                            chunk_file.seek(chunk_number * self.chunk_size)
+                            chunk_file_bytes = chunk_file.read(self.chunk_size)
+                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                            padding = 10 - len(bytes_array)
+                            for _ in range(padding): # Heck it works
+                                bytes_array.append(",")
+                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                    else:
+                        with open(os.path.join(self.directory, filename + "." + str(chunk_number) + ".chunk")) as chunk_file:
+                            chunk_file_bytes = chunk_file.read(self.chunk_size)
+                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                            padding = 10 - len(bytes_array)
+                            for _ in range(padding): # Heck it works
+                                bytes_array.append(",")
+                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+            except:
+                print("There is an error listening to tracker signal")
+
     def upload(self): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
         while True:
             # receive the request info fileInfo{ "fileName": "", "chunkFileName": "", "chunkNumber": int  }
@@ -192,6 +226,14 @@ class Peer(Runner):
                     if file_utils.has_file(self.directory, filename): # Has full file
                         with open(os.path.join(self.directory, filename), "rb") as chunk_file:
                             chunk_file.seek(chunk_number * self.chunk_size)
+                            chunk_file_bytes = chunk_file.read(self.chunk_size)
+                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                            padding = 10 - len(bytes_array)
+                            for _ in range(padding): # Heck it works
+                                bytes_array.append(",")
+                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                    else:
+                        with open(os.path.join(self.directory, filename + "." + str(chunk_number) + ".chunk")) as chunk_file:
                             chunk_file_bytes = chunk_file.read(self.chunk_size)
                             bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
                             padding = 10 - len(bytes_array)
@@ -331,6 +373,15 @@ class Peer(Runner):
         self.external_ip = external_ip
         self.external_port = external_port
 
+    def tracker_hole_punching(self):
+        print("Punching a hole for tracker signal...")
+        nat_type, external_ip, external_port = stun.get_ip_info("0.0.0.0", self.port)
+        if nat_type == "Symmetric NAT":
+            print("You are using Symmetric NAT, not handling that")
+            exit()
+        print("Hole punched: Your IP is " + str(self.external_ip) + " and your port number is " + str(self.external_port))
+        self.external_signal_port = external_port
+
     def listen_for_request(self):
     	try:
             # self.listening_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -341,6 +392,16 @@ class Peer(Runner):
         print('Socket bind complete')
         self.socket_listening_thread = threading.Thread(target=self.upload, args=())
         self.socket_listening_thread.start()
+
+    def listen_for_tracker_signal(self):
+        try:
+            self.signal_socket.bind(('', self.signal_port))
+        except socket.error as msg:
+            print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+            sys.exit()
+        print('Socket bind complete')
+        self.signal_listening_thread = threading.Thread(target=self.signal_listening, args=())
+        self.signal_listening_thread.start()
 
     def update_tracker_new_files(self):
         """
@@ -420,12 +481,13 @@ Welcome to P2P Client. Please choose one of the following commands:
         # Punch a hole
         if self.hole_punching:
             self.hole_punching()
-            # Punch for tracker TODO
+            self.tracker_hole_punching()
         # # Start a listening socket thread
         self.listen_for_request()
 
         if self.hole_punching:
             # listen from signal port TODO
+            self.listen_for_tracker_signal()
         # # Register as peer
         self.register_as_peer() # Tell the tracker if we are behind a NAT, add signal port TODO
         # # Start the Text UI

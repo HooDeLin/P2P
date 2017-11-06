@@ -111,8 +111,12 @@ class Tracker(Runner):
         }
         return json.dumps(msg)
 
-    def handle_exit_message(self, msg):
-        peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
+    def handle_exit_message(self, msg, addr):
+        peer_id = ""
+        if "source_ip" in msg:
+            peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
+        else:
+            peer_id = addr[0] + ":" + str(msg["source_port"])
         self.peer_set.discard(peer_id)
         file_that_has_peer_as_solo_owners = []
         file_owner_that_needs_to_be_removed = []
@@ -135,6 +139,7 @@ class Tracker(Runner):
         signal_msg["message_type"] = "REQUEST_FILE_CHUNK_SIGNAL"
         signal_msg["receiver_address"] = msg["self_address"]
         signal_msg["filename"] = msg["filename"]
+        signal_msg["file_download_process_id"] = msg["file_download_process_id"]
         signal_msg["chunk_number"] = msg["chunk_number"]
         self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(dst_addr[1])))
 
