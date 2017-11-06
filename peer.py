@@ -201,6 +201,9 @@ class Peer(Runner):
             data_received, _ = self.signal_socket.recvfrom(1024)
             # try:
             message = json.loads(data_received)
+            print("------------Signal received")
+            print(message)
+            print("------------")
             if message["message_type"] == "REQUEST_FILE_CHUNK_SIGNAL":
                 print("Received request file chunk signal")
                 filename = message["filename"]
@@ -222,7 +225,7 @@ class Peer(Runner):
                         padding = 10 - len(bytes_array)
                         for _ in range(padding): # Heck it works
                             bytes_array.append(",")
-                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, (receiver_address[0], int(receiver_address[1])))
             # except:
             #     print("There is an error listening to tracker signal")
 
@@ -231,6 +234,8 @@ class Peer(Runner):
         # Sends a blank JSON to allow peer to connect to self.external_port
         # Essentially creates a mapping in the NAT-enabled router
         message = {"message_type": "GIBBERISH"}
+        print("Hole punch to peer")
+        print(owner_address)
         self.listening_socket.sendto(json.dumps(message), owner_address)
 
     def upload(self): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
@@ -239,6 +244,7 @@ class Peer(Runner):
             ## data_from_requester = self.connect.recv(1024) [TCP]
             data_received, requesterAddr = self.listening_socket.recvfrom(1024) #[UDP]
             try:
+                print("----------If you reach here, you should be very very happy---------")
                 message = json.loads(data_received)
                 if message["message_type"] == "REQUEST_FILE_CHUNK":
                     filename = message["file_name"]
@@ -291,6 +297,8 @@ class Peer(Runner):
                         message["file_download_process_id"] = file_id
                         message["file_name"] = str(filename)
                         message["chunk_number"] = int(chunk_numbers[0])
+                        if self.hole_punch:
+                            message["receiver_address"] = self.external_ip + ":" + str(self.external_port)
                         message["owner_address"] = chunk_owners[random_host_index]
                         self.send_message_to_tracker(message)
                     else:

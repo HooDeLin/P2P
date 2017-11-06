@@ -146,10 +146,14 @@ class Tracker(Runner):
         signal_msg = {}
         dst_addr = msg["owner_address"].split(":")
         signal_msg["message_type"] = "REQUEST_FILE_CHUNK_SIGNAL"
-        signal_msg["receiver_address"] = addr[0] + ":" + str(addr[1])
+        if "receiver_address" in msg:
+            signal_msg["receiver_address"] = msg["receiver_address"]
+        else:
+            signal_msg["receiver_address"] = addr[0] + ":" + str(addr[1])
         signal_msg["filename"] = msg["filename"]
         signal_msg["file_download_process_id"] = msg["file_download_process_id"]
         signal_msg["chunk_number"] = msg["chunk_number"]
+        print(signal_msg)
         self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(self.public_peer_signal[msg["owner_address"]])))
 
     def parse_msg(self, data, addr):
