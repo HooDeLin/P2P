@@ -199,32 +199,32 @@ class Peer(Runner):
         self.signal_socket.sendto(json.dumps({"message_type": "GIBERRISH"}), (self.tracker_address, int(self.tracker_signal_port)))
         while True:
             data_received, _ = self.signal_socket.recvfrom(1024)
-            try:
-                message = json.loads(data_received)
-                if message["message_type"] == "REQUEST_FILE_CHUNK_SIGNAL":
-                    print("Received request file chunk signal")
-                    filename = message["filename"]
-                    chunk_number = message["chunk_number"]
-                    receiver_address = message["receiver_address"].split(":")
-                    if file_utils.has_file(self.directory, filename): # Has full file
-                        with open(os.path.join(self.directory, filename), "rb") as chunk_file:
-                            chunk_file.seek(chunk_number * self.chunk_size)
-                            chunk_file_bytes = chunk_file.read(self.chunk_size)
-                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
-                            padding = 10 - len(bytes_array)
-                            for _ in range(padding): # Heck it works
-                                bytes_array.append(",")
-                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
-                    else:
-                        with open(os.path.join(self.directory, filename + "." + str(chunk_number) + ".chunk")) as chunk_file:
-                            chunk_file_bytes = chunk_file.read(self.chunk_size)
-                            bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
-                            padding = 10 - len(bytes_array)
-                            for _ in range(padding): # Heck it works
-                                bytes_array.append(",")
-                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
-            except:
-                print("There is an error listening to tracker signal")
+            # try:
+            message = json.loads(data_received)
+            if message["message_type"] == "REQUEST_FILE_CHUNK_SIGNAL":
+                print("Received request file chunk signal")
+                filename = message["filename"]
+                chunk_number = message["chunk_number"]
+                receiver_address = message["receiver_address"].split(":")
+                if file_utils.has_file(self.directory, filename): # Has full file
+                    with open(os.path.join(self.directory, filename), "rb") as chunk_file:
+                        chunk_file.seek(chunk_number * self.chunk_size)
+                        chunk_file_bytes = chunk_file.read(self.chunk_size)
+                        bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                        padding = 10 - len(bytes_array)
+                        for _ in range(padding): # Heck it works
+                            bytes_array.append(",")
+                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                else:
+                    with open(os.path.join(self.directory, filename + "." + str(chunk_number) + ".chunk")) as chunk_file:
+                        chunk_file_bytes = chunk_file.read(self.chunk_size)
+                        bytes_array = bytearray(str(message["file_download_process_id"]) + ","+ str(message["chunk_number"]))
+                        padding = 10 - len(bytes_array)
+                        for _ in range(padding): # Heck it works
+                            bytes_array.append(",")
+                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+            # except:
+            #     print("There is an error listening to tracker signal")
 
     def hole_punch_to_peer(self, owner_address):
         # Called when self is behind NAT
