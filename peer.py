@@ -363,7 +363,11 @@ class Peer(Runner):
         Tells the Tracker that you are exiting the network
         """
         message = {}
-        message["source_port"] = self.port
+        if self.hole_punching:
+            message['source_ip'] = self.external_ip
+            message['source_port'] = self.external_port
+        else:
+            message["source_port"] = self.port
         message["message_type"] = "EXIT"
         self.send_message_to_tracker(message)
         print("Exiting...")
@@ -384,10 +388,10 @@ Welcome to P2P Client. Please choose one of the following commands:
    Usage: 1
 
 2. List all Peers possessing a file
-   Usage: 2 <file checksum>
+   Usage: 2 <file>
 
 3. Download file
-   Usage: 3 <file checksum>
+   Usage: 3 <file>
 
 4. Update Tracker of your new files and chunks
    Usage: 4
@@ -399,11 +403,15 @@ Welcome to P2P Client. Please choose one of the following commands:
         while True:
             print("# > ", end="")
             user_input = raw_input()
-            # try:
             input_lst = user_input.split(" ")
             if len(input_lst) > 2:
                 print(msg)
                 print("Invalid command")
+                continue
+            if not input_lst[0].isdigit():
+                print(msg)
+                print("Invalid command")
+                continue
             command = int(input_lst[0])
             filename = input_lst[1] if len(input_lst) > 1 else None
             if command == 1:
@@ -419,6 +427,7 @@ Welcome to P2P Client. Please choose one of the following commands:
             else:
                 print(msg)
                 print("Invalid command")
+                continue
 
     def start_peer(self):
         # Punch a hole
