@@ -125,7 +125,7 @@ class Peer(Runner):
         sending_socket.connect(server_address)
         try:
             sending_socket.sendall(json.dumps(message))
-            
+
             # increamentally receiving the JSON data from the tracker
             data = ''
             while True:
@@ -223,7 +223,7 @@ class Peer(Runner):
             except:
                 print("There is an error listening to tracker signal")
 
-    def hole_punch_to_peer(owner_address):
+    def hole_punch_to_peer(self, owner_address):
         # Called when self is behind NAT
         # Sends a blank JSON to allow peer to connect to self.external_port
         # Essentially creates a mapping in the NAT-enabled router
