@@ -1,7 +1,7 @@
 from __future__ import print_function
 import socket
-# import threading
-import multiprocessing
+import threading
+# import multiprocessing
 import sys
 import json
 import os, glob
@@ -200,6 +200,15 @@ class Peer(Runner):
                             self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
             except: # This is a file chunk that you are receiving
                 file_process_id = data_received[0:10].split(",")
+                # There is an error here where the list we get is not updated
+                # Might be a thread issue
+                file_download_process = self.file_download_process_info[int(file_process_id[0])]
+                file_name = file_download_process["filename"]
+                chunk_number = int(file_process_id[1])
+                chunk_file_directory = os.path.join(self.directory, file_name+ "." +str(chunk_number)+".chunk")
+                actual_data = data_received[10:]
+                with open(chunk_file_directory, 'wb') as new_chunk_file:
+                    new_chunk_file.write(actual_data)
             # print(json.loads(data_from_requester))
             #
             # if data_from_requester:
@@ -295,7 +304,6 @@ class Peer(Runner):
         file_download_info = {"chunks_needed": chunks_needed, "filename": reply["filename"]}
         file_id = len(self.file_download_process_info)
         self.file_download_process_info.append(file_download_info)
-
         # Kick off the first chunk download
         chunk_owners = chunks_needed[chunk_numbers[0]]
         random_host_index = randint(0, len(chunk_owners)-1)
@@ -367,7 +375,7 @@ class Peer(Runner):
             print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
             sys.exit()
         print('Socket bind complete')
-        self.socket_listening_thread = multiprocessing.Process(target=self.upload, args=())
+        self.socket_listening_thread = threading.Thread(target=self.upload, args=())
         self.socket_listening_thread.start()
 
     def update_tracker_new_files(self):
@@ -457,5 +465,5 @@ Welcome to P2P Client. Please choose one of the following commands:
 
     def stop(self):
         print("Stopping peer")
-        self.socket_listening_thread.terminate()
+        # self.socket_listening_thread.terminate()
         self.listening_socket.close()
