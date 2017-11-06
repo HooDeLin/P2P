@@ -281,7 +281,7 @@ class Peer(Runner):
                     owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
                     if self.hole_punch:
                         self.hole_punch_to_peer(owner_address)
-                    if owner_address in self.known_peers_behind_nat:
+                    if chunk_owners[random_host_index] in self.known_peers_behind_nat:
                         print("Peer is behind NAT...")
                         message["message_type"] = "REQUEST_FILE_CHUNK_NAT"
                         message["filename"] = str(filename)
@@ -353,7 +353,7 @@ class Peer(Runner):
         if self.hole_punch:
             print("----- I am behind a NAT, hole punch -----")
             self.hole_punch_to_peer(owner_address)
-        if owner_address in self.known_peers_behind_nat:
+        if chunk_owners[random_host_index] in self.known_peers_behind_nat:
             print("Peer is behind NAT...")
             message["message_type"] = "REQUEST_FILE_CHUNK_NAT"
             message["filename"] = str(filename)
