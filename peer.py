@@ -227,7 +227,7 @@ class Peer(Runner):
         # Called when self is behind NAT
         # Sends a blank JSON to allow peer to connect to self.external_port
         # Essentially creates a mapping in the NAT-enabled router
-        message = {}
+        message = {"message_type": "GIBBERISH"}
         self.listening_socket.sendto(json.dumps(message), owner_address)
 
     def upload(self): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
@@ -342,12 +342,16 @@ class Peer(Runner):
         file_download_info = {"chunks_needed": chunks_needed, "filename": reply["filename"]}
         file_id = len(self.file_download_process_info)
         self.file_download_process_info.append(file_download_info)
+        print("------- Compiled file download info -------")
+        print(file_download_info)
+        print("------- End Compiled file download info -------")
         # Kick off the first chunk download
         chunk_owners = chunks_needed[chunk_numbers[0]]
         random_host_index = randint(0, len(chunk_owners)-1)
         randomHostIPandPort = chunk_owners[random_host_index].split(":")
         owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
         if self.hole_punch:
+            print("----- I am behind a NAT, hole punch -----")
             self.hole_punch_to_peer(owner_address)
         if owner_address in self.known_peers_behind_nat:
             print("Peer is behind NAT...")
