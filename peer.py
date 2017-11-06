@@ -179,7 +179,7 @@ class Peer(Runner):
         for k, v in reply.items():
             print("{}: {}".format(k, v))
 
-    def upload(self):
+    def upload(self): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
         while True:
             # receive the request info fileInfo{ "fileName": "", "chunkFileName": "", "chunkNumber": int  }
             ## data_from_requester = self.connect.recv(1024) [TCP]
@@ -207,10 +207,6 @@ class Peer(Runner):
                 actual_data = data_received[10:]
                 with open(chunk_file_directory, 'wb') as new_chunk_file:
                     new_chunk_file.write(actual_data)
-                print("----------")
-                print(file_process_id)
-                print(file_download_process)
-                print("----------")
                 file_download_process["chunks_needed"].pop(file_process_id[1])
                 self.file_download_process_info[int(file_process_id[0])] = file_download_process
                 print(file_download_process)
@@ -233,7 +229,7 @@ class Peer(Runner):
                     self.listening_socket.sendto(json.dumps(message), owner_address)
 
 
-    def download(self, filename):
+    def download(self, filename): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
         """
         Downloads the file with this filename from other Peers in the network
 
@@ -424,10 +420,14 @@ Welcome to P2P Client. Please choose one of the following commands:
         # Punch a hole
         if self.hole_punching:
             self.hole_punching()
+            # Punch for tracker TODO
         # # Start a listening socket thread
         self.listen_for_request()
+
+        if self.hole_punching:
+            # listen from signal port TODO
         # # Register as peer
-        self.register_as_peer()
+        self.register_as_peer() # Tell the tracker if we are behind a NAT, add signal port TODO
         # # Start the Text UI
         self.start_tui()
 
