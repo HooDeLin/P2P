@@ -21,7 +21,7 @@ class Peer(Runner):
         self.port = settings["port"]
         self.directory = settings["peer-directory"]
         self.hole_punching = "hole-punching" in settings
-        self.tracker_signal_port = settings["tracker_signal_port"]
+        self.tracker_signal_port = settings["tracker-signal-port"]
         self.signal_port = settings["signal-port"]
         self.external_ip = None
         self.external_port = None
@@ -35,6 +35,7 @@ class Peer(Runner):
         self.chunks = []
         self.file_download_process_info = []
         self.connect = None
+        self.known_peers_behind_nat = []
 
     def get_directory_files(self):
         # Returns a list of filenames in self.directory
@@ -214,6 +215,13 @@ class Peer(Runner):
             except:
                 print("There is an error listening to tracker signal")
 
+    def hole_punch_to_peer(owner_address):
+        # Called when self is behind NAT
+        # Sends a blank JSON to allow peer to connect to self.external_port
+        # Essentially creates a mapping in the NAT-enabled router
+        message = {}
+        self.listening_socket.sendto(json.dumps(message), owner_address)
+
     def upload(self): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
         while True:
             # receive the request info fileInfo{ "fileName": "", "chunkFileName": "", "chunkNumber": int  }
@@ -263,6 +271,8 @@ class Peer(Runner):
                     random_host_index = randint(0, len(chunk_owners)-1)
                     randomHostIPandPort = chunk_owners[random_host_index].split(":")
                     owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
+                    if self.hole_punching:
+                        hole_punch_to_peer(owner_address)
                     print("Requesting from " + str(owner_address))
                     message = {}
                     message["message_type"] = "REQUEST_FILE_CHUNK"
@@ -295,6 +305,9 @@ class Peer(Runner):
             print(reply["error"])
             return
 
+        # Update list of peers known to be behind NAT
+        self.known_peers_behind_nat = reply["peer_behind_nat"]
+
         # Create process info for the file downloading
         available_chunks = file_utils.get_all_chunk_number_available(self.directory, filename)
         chunks_needed = {}
@@ -316,6 +329,8 @@ class Peer(Runner):
         random_host_index = randint(0, len(chunk_owners)-1)
         randomHostIPandPort = chunk_owners[random_host_index].split(":")
         owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
+        if self.hole_punching:
+            hole_punch_to_peer(owner_address)
         print("Requesting from " + str(owner_address))
         message = {}
         message["message_type"] = "REQUEST_FILE_CHUNK"

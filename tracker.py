@@ -111,7 +111,7 @@ class Tracker(Runner):
                "checksum": checksum,
                "chunks": chunks,
                "num_of_chunks": num_of_chunks,
-               "peer_behind_nat": list(public_peer_set)
+               "peer_behind_nat": list(self.public_peer_set)
         }
         return json.dumps(msg)
 
