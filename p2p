@@ -1,21 +1,22 @@
 #!/usr/bin/python
 import sys
+import logger
 from tracker import Tracker
 from peer import Peer
-from args_parser import parse_args
+from args_parser import parse_args, is_peer, is_tracker
 from runner import Runner
+from constants import *
 
 if __name__ == "__main__":
-    # Have fun
-    print("Starting P2P Application...")
+    logger.print_starting_message()
     settings = parse_args(sys.argv)
-    print("These are your settings: " + str(settings))
+    logger.print_settings(settings)
     runner = Runner()
     try:
-        if settings["role"] == "tracker":
+        if is_tracker(settings):
             runner = Tracker(settings)
             runner.start_tracker()
-        elif settings["role"] == "peer":
+        elif is_peer(settings):
             runner = Peer(settings)
             runner.start_peer()
     except KeyboardInterrupt:

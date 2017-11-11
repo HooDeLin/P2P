@@ -3,10 +3,12 @@ import json
 import sys
 import random
 import hashlib
+import logger
 from threading import Thread
 from sets import Set
 from runner import Runner
 from threading import Lock
+from constants import *
 
 class Tracker(Runner):
 
@@ -18,79 +20,83 @@ class Tracker(Runner):
         self.file_owners = {}
         self.chunk_owners = {}
         self.lock = Lock()
-        self.port = settings["port"]
+        self.port = settings[SETTINGS_PORT_KEY]
         self.peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.signal_port = settings["signal-port"]
+        self.signal_port = settings[SETTINGS_SIGNAL_PORT_KEY]
         self.signal_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        print ("Socket created")
+        logger.print_socket_created_message()
         try:
-            self.peer_socket.bind(("", settings["port"]))
-            self.signal_socket.bind(("", settings["signal-port"]))
+            self.peer_socket.bind(("", self.port))
+            self.signal_socket.bind(("", self.signal_port))
         except socket.error as msg:
-            print 'Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+            logger.print_socket_error_message(msg)
             sys.exit()
-        print 'Socket bind complete'
-        self.peer_socket.listen(10)
-        print 'Socket now listening'
+        logger.print_socket_bind_message()
+        self.peer_socket.listen(1000)
 
     def create_not_yet_implemented_reply(self):
+        # Format: {"message_type": "NOT_YET_IMPLEMENTED"}
         msg = {}
-        msg["message_type"] = "NOT_YET_IMPLEMENTED"
+        msg[MESSAGE_TYPE_KEY] = NOT_YET_IMPLEMENTED_MESSAGE_TYPE
         return json.dumps(msg)
 
     def create_ack_reply(self):
+        # Format: {"message_type": "ACK"}
         msg = {}
-        msg["message_type"] = "ACK"
+        msg[MESSAGE_TYPE_KEY] = ACK_MESSAGE_TYPE
         return json.dumps(msg)
 
     def create_list_of_files_reply(self):
+        # Format: {"message_type": "QUERY_LIST_OF_FILES_REPLY", "files": ["file1", "file2", ...]}
         msg = {}
-        msg["message_type"] = "QUERY_LIST_OF_FILES_REPLY"
-        msg["files"] = list(set(self.chunk_owners.keys() + self.file_details.keys()))
+        msg[MESSAGE_TYPE_KEY] = QUERY_LIST_OF_FILES_REPLY_MESSAGE_TYPE
+        msg[MSG_FILES_KEY] = list(set(self.chunk_owners.keys() + self.file_details.keys()))
         return json.dumps(msg)
 
-    def handle_inform_and_update_message(self, msg, addr):
-        peer_id = ""
-        if "source_ip" in msg:
-            peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
+    def get_peer_id_from_message(self, msg, addr):
+        if MSG_SOURCE_IP_KEY in msg:
+            return msg[MSG_SOURCE_IP_KEY] + ":" + str(MSG_SOURCE_PORT_KEY)
         else:
-            peer_id = addr[0] + ":" + str(msg["source_port"])
-        if "signal_port" in msg: # If you send a signal port, you are behind NAT
+            return addr[0] + ":" + str(MSG_SOURCE_PORT_KEY)
+
+    def handle_inform_and_update_message(self, msg, addr):
+        peer_id = self.get_peer_id_from_message(msg, addr)
+        if MSG_SIGNAL_PORT_KEY in msg: # If you send a signal port, you are behind NAT
             self.public_peer_set.add(peer_id)
-            self.public_peer_signal[peer_id] = msg["signal_port"]
+            self.public_peer_signal[peer_id] = msg[MSG_SIGNAL_PORT_KEY]
         self.peer_set.add(peer_id)
-        for peer_files in msg["files"]:
-            file_name = peer_files["filename"]
+        for peer_files in msg[MSG_FILES_KEY]:
+            file_name = peer_files[MSG_FILENAME_KEY]
             # Add files into file details if this is the first time appearing
             if file_name not in self.file_details:
-                file_checksum = peer_files["filechecksum"]
-                num_of_chunks = peer_files["num_of_chunks"]
+                file_checksum = peer_files[MSG_CHECKSUM_KEY]
+                num_of_chunks = peer_files[MSG_NUM_OF_CHUNKS_KEY]
                 self.file_details[file_name] = {}
-                self.file_details[file_name]["filechecksum"] = file_checksum
-                self.file_details[file_name]["num_of_chunks"] = num_of_chunks
+                self.file_details[file_name][MSG_CHECKSUM_KEY] = file_checksum
+                self.file_details[file_name][MSG_NUM_OF_CHUNKS_KEY] = num_of_chunks
             # Add the owner to file owners
             if file_name not in self.file_owners:
                 self.file_owners[file_name] = [peer_id]
             elif peer_id not in self.file_owners[file_name]:
                 self.file_owners[file_name].append(peer_id)
 
-        for peer_file_chunks in msg["chunks"]:
-            file_name = peer_file_chunks["filename"]
+        for peer_file_chunks in msg[MSG_CHUNKS_KEY]:
+            file_name = peer_file_chunks[MSG_FILENAME_KEY]
             if file_name not in self.chunk_owners:
-                self.chunk_owners[file_name] = {peer_id: peer_file_chunks["chunks"]}
+                self.chunk_owners[file_name] = {peer_id: peer_file_chunks[MSG_CHUNKS_KEY]}
             elif peer_id not in self.chunk_owners[file_name]:
-                self.chunk_owners[file_name][peer_id] = peer_file_chunks["chunks"]
+                self.chunk_owners[file_name][peer_id] = peer_file_chunks[MSG_CHUNKS_KEY]
             else:
-                updated_file_chunk_owns = list(set(self.chunk_owners[file_name][peer_id] + peer_file_chunks["chunks"]))
+                updated_file_chunk_owns = list(set(self.chunk_owners[file_name][peer_id] + peer_file_chunks[MSG_CHUNKS_KEY]))
                 self.chunk_owners[file_name][peer_id] = updated_file_chunk_owns
         return
 
     def create_file_reply(self, file_name):
         if file_name not in self.file_details:
-            msg = {"message_type": "QUERY_FILE_ERROR", "error": "File does not exists"}
+            msg = {MESSAGE_TYPE_KEY: QUERY_FILE_ERROR_MESSAGE_TYPE, "error": "File does not exists"}
             return json.dumps(msg)
-        checksum = self.file_details[file_name]["filechecksum"]
-        num_of_chunks = self.file_details[file_name]["num_of_chunks"]
+        checksum = self.file_details[file_name][MSG_CHECKSUM_KEY]
+        num_of_chunks = self.file_details[file_name][MSG_NUM_OF_CHUNKS_KEY]
         owners = self.file_owners[file_name]
         chunks = {}
         if file_name in self.chunk_owners:
@@ -108,21 +114,17 @@ class Tracker(Runner):
                     chunks[str(i)].append(owner)
                 else:
                     chunks[str(i)] = [owner]
-        msg = {"message_type": "QUERY_FILE_REPLY",
-               "filename": file_name,
-               "checksum": checksum,
-               "chunks": chunks,
-               "num_of_chunks": num_of_chunks,
-               "peer_behind_nat": list(self.public_peer_set)
+        msg = {MESSAGE_TYPE_KEY: QUERY_FILE_REPLY_MESSAGE_TYPE,
+               MSG_FILENAME_KEY: file_name,
+               MSG_CHECKSUM_KEY: checksum,
+               MSG_CHUNKS_KEY: chunks,
+               MSG_NUM_OF_CHUNKS_KEY: num_of_chunks,
+               MSG_PEER_BEHIND_NAT_KEY: list(self.public_peer_set)
         }
         return json.dumps(msg)
 
     def handle_exit_message(self, msg, addr):
-        peer_id = ""
-        if "source_ip" in msg:
-            peer_id = msg["source_ip"] + ":" + str(msg["source_port"])
-        else:
-            peer_id = addr[0] + ":" + str(msg["source_port"])
+        peer_id = self.get_peer_id_from_message(msg, addr)
         if peer_id in self.public_peer_signal:
             self.public_peer_signal.pop(peer_id)
         self.public_peer_set.discard(peer_id)
@@ -144,36 +146,36 @@ class Tracker(Runner):
 
     def send_signal(self, msg, addr):
         signal_msg = {}
-        dst_addr = msg["owner_address"].split(":")
-        signal_msg["message_type"] = "REQUEST_FILE_CHUNK_SIGNAL"
-        if "receiver_address" in msg:
-            signal_msg["receiver_address"] = msg["receiver_address"]
+        dst_addr = msg[MSG_OWNER_ADDRESS_KEY].split(":")
+        signal_msg[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_SIGNAL_MESSAGE_TYPE
+        if MSG_RECEIVER_ADDRESS_KEY in msg:
+            signal_msg[MSG_RECEIVER_ADDRESS_KEY] = msg[MSG_RECEIVER_ADDRESS_KEY]
         else:
-            signal_msg["receiver_address"] = addr[0] + ":" + str(addr[1])
-        signal_msg["filename"] = msg["filename"]
-        signal_msg["file_download_process_id"] = msg["file_download_process_id"]
-        signal_msg["chunk_number"] = msg["chunk_number"]
-        print(signal_msg)
-        self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(self.public_peer_signal[msg["owner_address"]])))
+            signal_msg[MSG_RECEIVER_ADDRESS_KEY] = addr[0] + ":" + str(addr[1])
+        signal_msg[MSG_FILENAME_KEY] = msg[MSG_FILENAME_KEY]
+        signal_msg[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = msg[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]
+        signal_msg[MSG_CHUNK_NUMBER_KEY] = msg[MSG_CHUNK_NUMBER_KEY]
+        logger.print_returning_data(signal_msg)
+        self.signal_socket.sendto(json.dumps(signal_msg), (dst_addr[0], int(self.public_peer_signal[msg[MSG_OWNER_ADDRESS_KEY]])))
 
     def parse_msg(self, data, addr):
         msg = json.loads(data)
-        if "message_type" not in msg:
-            print("Not yet implemented")
+        if MESSAGE_TYPE_KEY not in msg:
+            logger.print_not_yet_implemented_message()
             return self.create_not_yet_implemented_reply()
-        if msg["message_type"] == "INFORM_AND_UPDATE":
+        if msg[MESSAGE_TYPE_KEY] == INFORM_AND_UPDATE_MESSAGE_TYPE:
             self.lock.acquire()
             self.handle_inform_and_update_message(msg, addr)
             self.lock.release()
             return self.create_ack_reply()
-        elif msg["message_type"] == "QUERY_LIST_OF_FILES":
+        elif msg[MESSAGE_TYPE_KEY] == QUERY_LIST_OF_FILES_MESSAGE_TYPE:
             return self.create_list_of_files_reply()
-        elif msg["message_type"] == "QUERY_FILE":
-            return self.create_file_reply(msg["filename"])
-        elif msg["message_type"] == "REQUEST_FILE_CHUNK_NAT":
+        elif msg[MESSAGE_TYPE_KEY] == QUERY_FILE_MESSAGE_TYPE:
+            return self.create_file_reply(msg[MSG_FILENAME_KEY])
+        elif msg[MESSAGE_TYPE_KEY] == REQUEST_FILE_CHUNK_NAT_MESSAGE_TYPE:
             self.send_signal(msg, addr)
             return self.create_ack_reply()
-        elif msg["message_type"] == "EXIT":
+        elif msg[MESSAGE_TYPE_KEY] == EXIT_MESSAGE_TYPE:
             self.lock.acquire()
             self.handle_exit_message(msg)
             self.lock.release()
@@ -181,10 +183,10 @@ class Tracker(Runner):
 
     def handle_connection(self, conn, addr):
         data = conn.recv(1024)
-        print 'Received data: ' + data
+        logger.print_received_data(data)
         if data:
             return_data = self.parse_msg(data, addr)
-            print 'Returning data: ' + return_data
+            logger.print_returning_data(data)
             conn.sendall(return_data)
         conn.close()
 
@@ -196,5 +198,6 @@ class Tracker(Runner):
         self.peer_socket.close()
 
     def stop(self):
-        print("Stopping tracker")
+        logger.print_tracker_stopping_message()
         self.peer_socket.close()
+        self.signal_socket.close()
