@@ -201,9 +201,6 @@ class Peer(Runner):
             data_received, _ = self.signal_socket.recvfrom(1024)
             # try:
             message = json.loads(data_received)
-            print("------------Signal received")
-            print(message)
-            print("------------")
             if message["message_type"] == "REQUEST_FILE_CHUNK_SIGNAL":
                 print("Received request file chunk signal")
                 filename = message["filename"]
@@ -238,13 +235,12 @@ class Peer(Runner):
         print(owner_address)
         self.listening_socket.sendto(json.dumps(message), owner_address)
 
-    def upload(self): #  TODO: If the peer is behind NAT, tell the tracker that we want the file, and punch a hole to recieve file chunk, else do normally
+    def upload(self):
         while True:
             # receive the request info fileInfo{ "fileName": "", "chunkFileName": "", "chunkNumber": int  }
             ## data_from_requester = self.connect.recv(1024) [TCP]
             data_received, requesterAddr = self.listening_socket.recvfrom(1024) #[UDP]
             try:
-                print("----------If you reach here, you should be very very happy---------")
                 message = json.loads(data_received)
                 if message["message_type"] == "REQUEST_FILE_CHUNK":
                     filename = message["file_name"]
@@ -452,6 +448,7 @@ class Peer(Runner):
             sys.exit()
         print('Socket bind complete')
         self.socket_listening_thread = threading.Thread(target=self.upload, args=())
+        self.socket_listening_thread.daemon = True
         self.socket_listening_thread.start()
 
     def listen_for_tracker_signal(self):
@@ -520,47 +517,51 @@ Welcome to P2P Client. Please choose one of the following commands:
         print(msg)
         while True:
             print("# > ", end="")
-            user_input = raw_input()
-            input_lst = user_input.split(" ")
-            if len(input_lst) > 2:
-                print(msg)
-                print("Invalid command")
-                continue
-            if not input_lst[0].isdigit():
-                print(msg)
-                print("Invalid command")
-                continue
-            command = int(input_lst[0])
-            filename = input_lst[1] if len(input_lst) > 1 else None
-            if command == 1:
-                self.get_available_files()
-            elif command == 2:
-                self.get_peers_with_file(filename) if filename else print("Please provide a filename")
-            elif command == 3:
-                self.download(filename) if filename else print("Please provide a filename")
-            elif command == 4:
-                self.update_tracker_new_files()
-            elif command == 5:
-                self.exit_network()
-            else:
-                print(msg)
-                print("Invalid command")
-                continue
+            try:
+                user_input = raw_input()
+                input_lst = user_input.split(" ")
+                if len(input_lst) > 2:
+                    print(msg)
+                    print("Invalid command")
+                    continue
+                if not input_lst[0].isdigit():
+                    print(msg)
+                    print("Invalid command")
+                    continue
+                command = int(input_lst[0])
+                filename = input_lst[1] if len(input_lst) > 1 else None
+                if command == 1:
+                    self.get_available_files()
+                elif command == 2:
+                    self.get_peers_with_file(filename) if filename else print("Please provide a filename")
+                elif command == 3:
+                    self.download(filename) if filename else print("Please provide a filename")
+                elif command == 4:
+                    self.update_tracker_new_files()
+                elif command == 5:
+                    self.exit_network()
+                else:
+                    print(msg)
+                    print("Invalid command")
+                    continue
+            except KeyboardInterrupt:
+                self.stop()
+                exit()
 
     def start_peer(self):
         # Punch a hole
         if self.hole_punch:
             self.hole_punching()
             self.tracker_hole_punching()
-        # # Start a listening socket thread
+        # Start a listening socket thread
         self.listen_for_request()
 
         if self.hole_punch:
-            # listen from signal port TODO
             self.listen_for_tracker_signal()
-        # # Register as peer
-        self.register_as_peer() # Tell the tracker if we are behind a NAT, add signal port TODO
-        # # Start the Text UI
+
+        # Register as peer
+        # self.register_as_peer()
+        # Start the Text UI
         self.start_tui()
 
     def stop(self):
