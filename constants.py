@@ -73,6 +73,8 @@ MSG_CHUNK_NUMBER_KEY = "chunk_number"
 SYMMETRIC_NAT_TYPE = "Symmetric NAT"
 CHUNK_EXTENSION = ".chunk"
 CHUNKS_NEEDED = "chunks_needed"
+IP_PORT_DELIMITER = ":"
+ID_DELIMITER = ","
 # Peer
 TUI_STARTING_MESSAGE = """
 /////////////////////////////////////////////////////////////////////

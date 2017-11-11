@@ -202,24 +202,10 @@ class Peer(Runner):
                 logger.print_receive_signal_message()
                 filename = message[MSG_FILENAME_KEY]
                 chunk_number = message[MSG_CHUNK_NUMBER_KEY]
-                receiver_address = message[MSG_RECEIVER_ADDRESS_KEY].split(":")
-                if file_utils.has_file(self.directory, filename): # Has full file
-                    with open(os.path.join(self.directory, filename), "rb") as chunk_file:
-                        chunk_file.seek(chunk_number * self.chunk_size)
-                        chunk_file_bytes = chunk_file.read(self.chunk_size)
-                        bytes_array = bytearray(str(message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]) + ","+ str(message[MSG_CHUNK_NUMBER_KEY]))
-                        padding = 10 - len(bytes_array)
-                        for _ in range(padding):
-                            bytes_array.append(",")
-                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, (receiver_address[0], int(receiver_address[1])))
-                else:
-                    with open(os.path.join(self.directory, filename + "." + str(chunk_number) + CHUNK_EXTENSION)) as chunk_file:
-                        chunk_file_bytes = chunk_file.read(self.chunk_size)
-                        bytes_array = bytearray(str(message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]) + ","+ str(message[MSG_CHUNK_NUMBER_KEY]))
-                        padding = 10 - len(bytes_array)
-                        for _ in range(padding):
-                            bytes_array.append(",")
-                        self.listening_socket.sendto(bytes_array + chunk_file_bytes, (receiver_address[0], int(receiver_address[1])))
+                requester_addr = message[MSG_RECEIVER_ADDRESS_KEY].split(IP_PORT_DELIMITER)
+                requester_addr[1] = int(requester_addr[1])
+                file_id = message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]
+                self.send_a_file_chunk_to_a_peer(filename, file_id, chunk_number, requester_addr)
             # except:
             #     print("There is an error listening to tracker signal")
 
@@ -230,35 +216,20 @@ class Peer(Runner):
         message = {MESSAGE_TYPE_KEY: ACK_MESSAGE_TYPE}
         self.listening_socket.sendto(json.dumps(message), owner_address)
 
-    def upload(self):
+    def listen_func(self):
         while True:
             # receive the request info fileInfo{ "fileName": "", "chunkFileName": "", "chunkNumber": int  }
             ## data_from_requester = self.connect.recv(1024) [TCP]
-            data_received, requesterAddr = self.listening_socket.recvfrom(1024) #[UDP]
+            data_received, requester_addr = self.listening_socket.recvfrom(1024) #[UDP]
             try:
                 message = json.loads(data_received)
                 if message[MESSAGE_TYPE_KEY] == REQUEST_FILE_CHUNK_MESSAGE_TYPE:
                     filename = message[MSG_FILENAME_KEY]
                     chunk_number = message[MSG_CHUNK_NUMBER_KEY]
-                    if file_utils.has_file(self.directory, filename): # Has full file
-                        with open(os.path.join(self.directory, filename), "rb") as chunk_file:
-                            chunk_file.seek(chunk_number * self.chunk_size)
-                            chunk_file_bytes = chunk_file.read(self.chunk_size)
-                            bytes_array = bytearray(str(message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]) + ","+ str(message[MSG_CHUNK_NUMBER_KEY]))
-                            padding = 10 - len(bytes_array)
-                            for _ in range(padding): # Heck it works
-                                bytes_array.append(",")
-                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
-                    else:
-                        with open(os.path.join(self.directory, filename + "." + str(chunk_number) + CHUNK_EXTENSION)) as chunk_file:
-                            chunk_file_bytes = chunk_file.read(self.chunk_size)
-                            bytes_array = bytearray(str(message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]) + ","+ str(message[MSG_CHUNK_NUMBER_KEY]))
-                            padding = 10 - len(bytes_array)
-                            for _ in range(padding): # Heck it works
-                                bytes_array.append(",")
-                            self.listening_socket.sendto(bytes_array + chunk_file_bytes, requesterAddr)
+                    file_id = message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]
+                    self.send_a_file_chunk_to_a_peer(filename, file_id, chunk_number,requester_addr)
             except: # This is a file chunk that you are receiving
-                file_process_id = data_received[0:10].split(",")
+                file_process_id = data_received[0:10].split(ID_DELIMITER)
                 file_download_process = self.file_download_process_info[int(file_process_id[0])]
                 file_name = file_download_process[MSG_FILENAME_KEY]
                 chunk_number = int(file_process_id[1])
@@ -268,7 +239,6 @@ class Peer(Runner):
                     new_chunk_file.write(actual_data)
                 file_download_process[CHUNKS_NEEDED].pop(file_process_id[1])
                 self.file_download_process_info[int(file_process_id[0])] = file_download_process
-                print(file_download_process)
                 if len(file_download_process[CHUNKS_NEEDED]) == 0:
                     self.combine_chunks(file_name)
                 else:
@@ -276,33 +246,24 @@ class Peer(Runner):
                     for key in file_download_process[CHUNKS_NEEDED]:
                         chunk_numbers.append(key)
                     chunk_owners = file_download_process[CHUNKS_NEEDED][chunk_numbers[0]]
-                    random_host_index = randint(0, len(chunk_owners)-1)
-                    randomHostIPandPort = chunk_owners[random_host_index].split(":")
-                    owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
-                    if self.hole_punch:
-                        self.hole_punch_to_peer(owner_address)
-                    if chunk_owners[random_host_index] in self.known_peers_behind_nat:
-                        message = {}
-                        logger.print_peer_behind_nat_message()
-                        message[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_NAT_MESSAGE_TYPE
-                        message[MSG_FILENAME_KEY] = file_name
-                        message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = int(file_process_id[0])
-                        message[MSG_CHUNK_NUMBER_KEY] = int(chunk_numbers[0])
-                        if self.hole_punch:
-                            message[MSG_RECEIVER_ADDRESS_KEY] = self.external_ip + ":" + str(self.external_port)
-                        message[MSG_OWNER_ADDRESS_KEY] = chunk_owners[random_host_index]
-                        self.send_message_to_tracker(message)
-                    else:
-                        print("Requesting from " + str(owner_address))
-                        message = {}
-                        message[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_MESSAGE_TYPE
-                        message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = int(file_process_id[0])
-                        message[MSG_FILENAME_KEY] = str(file_name)
-                        message[MSG_CHUNK_NUMBER_KEY] = int(chunk_numbers[0])
-                        self.listening_socket.sendto(json.dumps(message), owner_address)
+                    self.download_chunk_from_a_random_peer(chunk_owners, file_name, int(file_process_id[0]), int(chunk_numbers[0]))
 
+    def send_a_file_chunk_to_a_peer(self, filename, file_id, chunk_number, requester_addr):
+        chunk_file_bytes = None
+        if file_utils.has_file(self.directory, filename):
+            with open(os.path.join(self.directory, filename), "rb") as chunk_file:
+                chunk_file.seek(chunk_number * self.chunk_size)
+                chunk_file_bytes = chunk_file.read(self.chunk_size)
+        else:
+            with open(os.path.join(self.directory, filename + "." + str(chunk_number) + CHUNK_EXTENSION)) as chunk_file:
+                chunk_file_bytes = chunk_file.read(self.chunk_size)
+        bytes_array = bytearray(str(file_id) + ID_DELIMITER + str(chunk_number))
+        padding = 10 - len(bytes_array)
+        for _ in range(padding):
+            bytes_array.append(ID_DELIMITER)
+        self.listening_socket.sendto(bytes_array + chunk_file_bytes, requester_addr)
 
-    def download(self, filename):
+    def initiate_download(self, filename):
         """
         Downloads the file with this filename from other Peers in the network
 
@@ -344,32 +305,41 @@ class Peer(Runner):
         file_download_info = {CHUNKS_NEEDED: chunks_needed, MSG_FILENAME_KEY: reply[MSG_FILENAME_KEY]}
         file_id = len(self.file_download_process_info)
         self.file_download_process_info.append(file_download_info)
-        # Kick off the first chunk download
         chunk_owners = chunks_needed[chunk_numbers[0]]
-        random_host_index = randint(0, len(chunk_owners)-1)
-        randomHostIPandPort = chunk_owners[random_host_index].split(":")
-        owner_address = (randomHostIPandPort[0], int(randomHostIPandPort[1])) # generate a tuple of (ip, port) of the owner of the chunk
+        # Kick off the first chunk download
+        self.download_chunk_from_a_random_peer(chunk_owners, filename, file_id, int(chunk_numbers[0]))
+
+    def download_chunk_from_a_random_peer(self, chunk_owners, filename, file_id, chunk_number):
+        random_host_index = randint(0, len(chunk_owners) - 1)
+        random_host_ip_and_port = chunk_owners[random_host_index].split(IP_PORT_DELIMITER)
+        owner_address = (random_host_ip_and_port[0], int(random_host_ip_and_port[1]))
         if self.hole_punch:
             self.hole_punch_to_peer(owner_address)
-        if chunk_owners[random_host_index] in self.known_peers_behind_nat:
+        if chunk_owners[random_host_index] in self.known_peers_behind_nat: # The peer you wanted to get the file chunk from is behind NAT
             logger.print_peer_behind_nat_message()
-            message[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_NAT_MESSAGE_TYPE
-            message[MSG_FILENAME_KEY] = str(filename)
-            message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = file_id
-            message[MSG_FILENAME_KEY] = str(filename)
-            message[MSG_CHUNK_NUMBER_KEY] = int(chunk_numbers[0])
-            if self.hole_punch:
-                message[MSG_RECEIVER_ADDRESS_KEY] = self.external_ip + ":" + str(self.external_port)
-            message[MSG_OWNER_ADDRESS_KEY] = chunk_owners[random_host_index]
-            self.send_message_to_tracker(message)
-        else:
-            print("Requesting from " + str(owner_address))
-            message = {}
-            message[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_MESSAGE_TYPE
-            message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = file_id
-            message[MSG_FILENAME_KEY] = str(filename)
-            message[MSG_CHUNK_NUMBER_KEY] = int(chunk_numbers[0])
-            self.listening_socket.sendto(json.dumps(message), owner_address)
+            self.send_signal_to_tracker_for_file_chunk(owner_address, filename, file_id, chunk_number)
+        else: # The peer you wanted to get the file chunk from is not behind NAT
+            self.request_file_chunk_from_peer(owner_address, filename, file_id, chunk_number)
+
+    def send_signal_to_tracker_for_file_chunk(self, owner_address, filename, file_download_process_id, chunk_number):
+        message = {}
+        message[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_NAT_MESSAGE_TYPE
+        message[MSG_FILENAME_KEY] = filename
+        message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = file_download_process_id
+        message[MSG_CHUNK_NUMBER_KEY] = chunk_number
+        if self.hole_punch:
+            message[MSG_RECEIVER_ADDRESS_KEY] = self.external_ip + IP_PORT_DELIMITER + str(self.external_port)
+        message[MSG_OWNER_ADDRESS_KEY] = owner_address[0] + IP_PORT_DELIMITER + str(owner_address[1])
+        self.send_message_to_tracker(message)
+
+    def request_file_chunk_from_peer(self, owner_address, filename, file_download_process_id, chunk_number):
+        print("Requesting from " + str(owner_address))
+        message = {}
+        message[MESSAGE_TYPE_KEY = REQUEST_FILE_CHUNK_MESSAGE_TYPE
+        message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = file_download_process_id
+        message[MSG_FILENAME_KEY] = filename
+        message[MSG_CHUNK_NUMBER_KEY] = chunk_number
+        self.listening_socket.sendto(json.dumps(message), owner_address)
 
     def combine_chunks(self, filename):
         """
@@ -423,7 +393,7 @@ class Peer(Runner):
             logger.print_socket_error_message(msg)
             sys.exit()
         logger.print_socket_bind_message()
-        self.socket_listening_thread = threading.Thread(target=self.upload, args=())
+        self.socket_listening_thread = threading.Thread(target=self.listen_func, args=())
         self.socket_listening_thread.start()
 
     def listen_for_tracker_signal(self):
@@ -489,7 +459,7 @@ class Peer(Runner):
                 # elif command == 2: # TODO: We should remove this entirely
                 #     self.get_peers_with_file(filename) if filename else print("Please provide a filename")
                 elif command == 3:
-                    self.download(filename) if filename else logger.print_provide_filename()
+                    self.initiate_download(filename) if filename else logger.print_provide_filename()
                 elif command == 4:
                     self.update_tracker_new_files()
                 elif command == 5:

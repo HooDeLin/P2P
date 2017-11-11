@@ -55,9 +55,9 @@ class Tracker(Runner):
 
     def get_peer_id_from_message(self, msg, addr):
         if MSG_SOURCE_IP_KEY in msg:
-            return msg[MSG_SOURCE_IP_KEY] + ":" + str(MSG_SOURCE_PORT_KEY)
+            return msg[MSG_SOURCE_IP_KEY] + IP_PORT_DELIMITER + str(MSG_SOURCE_PORT_KEY)
         else:
-            return addr[0] + ":" + str(MSG_SOURCE_PORT_KEY)
+            return addr[0] + IP_PORT_DELIMITER + str(MSG_SOURCE_PORT_KEY)
 
     def handle_inform_and_update_message(self, msg, addr):
         peer_id = self.get_peer_id_from_message(msg, addr)
@@ -146,12 +146,12 @@ class Tracker(Runner):
 
     def send_signal(self, msg, addr):
         signal_msg = {}
-        dst_addr = msg[MSG_OWNER_ADDRESS_KEY].split(":")
+        dst_addr = msg[MSG_OWNER_ADDRESS_KEY].split(IP_PORT_DELIMITER)
         signal_msg[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_SIGNAL_MESSAGE_TYPE
         if MSG_RECEIVER_ADDRESS_KEY in msg:
             signal_msg[MSG_RECEIVER_ADDRESS_KEY] = msg[MSG_RECEIVER_ADDRESS_KEY]
         else:
-            signal_msg[MSG_RECEIVER_ADDRESS_KEY] = addr[0] + ":" + str(addr[1])
+            signal_msg[MSG_RECEIVER_ADDRESS_KEY] = addr[0] + IP_PORT_DELIMITER + str(addr[1])
         signal_msg[MSG_FILENAME_KEY] = msg[MSG_FILENAME_KEY]
         signal_msg[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = msg[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]
         signal_msg[MSG_CHUNK_NUMBER_KEY] = msg[MSG_CHUNK_NUMBER_KEY]
