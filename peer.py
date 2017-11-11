@@ -335,7 +335,7 @@ class Peer(Runner):
     def request_file_chunk_from_peer(self, owner_address, filename, file_download_process_id, chunk_number):
         print("Requesting from " + str(owner_address))
         message = {}
-        message[MESSAGE_TYPE_KEY = REQUEST_FILE_CHUNK_MESSAGE_TYPE
+        message[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_MESSAGE_TYPE
         message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = file_download_process_id
         message[MSG_FILENAME_KEY] = filename
         message[MSG_CHUNK_NUMBER_KEY] = chunk_number
