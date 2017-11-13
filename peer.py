@@ -151,7 +151,6 @@ class Peer(Runner):
                 exit()
 
     def get_peer_id(self, msg):
-        parsed = json.loads(msg)
         ip = msg[MSG_PEER_ID_KEY].split(IP_PORT_DELIMITER)
         self.external_ip = ip[0]
 
