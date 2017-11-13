@@ -202,8 +202,9 @@ class Peer(Runner):
                 logger.print_receive_signal_message()
                 filename = message[MSG_FILENAME_KEY]
                 chunk_number = message[MSG_CHUNK_NUMBER_KEY]
-                requester_addr = message[MSG_RECEIVER_ADDRESS_KEY].split(IP_PORT_DELIMITER)
-                requester_addr[1] = int(requester_addr[1])
+                requester_addr_list = message[MSG_RECEIVER_ADDRESS_KEY].split(IP_PORT_DELIMITER)
+                requester_addr = (requester_addr_list[0], int(requester_addr_list[1]))
+                print(requester_addr)
                 file_id = message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]
                 self.send_a_file_chunk_to_a_peer(filename, file_id, chunk_number, requester_addr)
             # except:
@@ -229,6 +230,7 @@ class Peer(Runner):
                     file_id = message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY]
                     self.send_a_file_chunk_to_a_peer(filename, file_id, chunk_number,requester_addr)
             except: # This is a file chunk that you are receiving
+                print("I have received a file chunk")
                 file_process_id = data_received[0:10].split(ID_DELIMITER)
                 file_download_process = self.file_download_process_info[int(file_process_id[0])]
                 file_name = file_download_process[MSG_FILENAME_KEY]
