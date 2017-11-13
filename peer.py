@@ -312,6 +312,7 @@ class Peer(Runner):
     def download_chunk_from_a_random_peer(self, chunk_owners, filename, file_id, chunk_number):
         random_host_index = randint(0, len(chunk_owners) - 1)
         random_host_ip_and_port = chunk_owners[random_host_index].split(IP_PORT_DELIMITER)
+	print(random_host_ip_and_port)
         owner_address = (random_host_ip_and_port[0], int(random_host_ip_and_port[1]))
         if self.hole_punch:
             self.hole_punch_to_peer(owner_address)

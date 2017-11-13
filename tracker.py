@@ -55,9 +55,9 @@ class Tracker(Runner):
 
     def get_peer_id_from_message(self, msg, addr):
         if MSG_SOURCE_IP_KEY in msg:
-            return msg[MSG_SOURCE_IP_KEY] + IP_PORT_DELIMITER + str(MSG_SOURCE_PORT_KEY)
+            return msg[MSG_SOURCE_IP_KEY] + IP_PORT_DELIMITER + str(msg[MSG_SOURCE_PORT_KEY])
         else:
-            return addr[0] + IP_PORT_DELIMITER + str(MSG_SOURCE_PORT_KEY)
+            return addr[0] + IP_PORT_DELIMITER + str(addr[1])
 
     def handle_inform_and_update_message(self, msg, addr):
         peer_id = self.get_peer_id_from_message(msg, addr)
@@ -186,7 +186,7 @@ class Tracker(Runner):
         logger.print_received_data(data)
         if data:
             return_data = self.parse_msg(data, addr)
-            logger.print_returning_data(data)
+            logger.print_returning_data(return_data)
             conn.sendall(return_data)
         conn.close()
 
