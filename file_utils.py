@@ -32,7 +32,7 @@ def combine_chunks(directory, filename, num_of_keys, chunk_size):
 			with open(chunk_file_directory, 'rb') as chunk_file:
 				new_file.write(chunk_file.read(chunk_size))
 
-		chunkIndex+=1
+		chunk_index+=1
 
-		if(chunkIndex == num_of_keys):
+		if(chunk_index == num_of_keys):
 			remove_all_associated_chunks(directory, filename)
