@@ -484,7 +484,7 @@ class Peer(Runner):
             self.listen_for_tracker_signal()
 
         # Register as peer
-        # self.register_as_peer()
+        self.register_as_peer()
         # Start the Text UI
         self.start_tui()
 
