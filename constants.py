@@ -59,6 +59,7 @@ MSG_CHUNKS_KEY = "chunks"
 MSG_NUM_OF_CHUNKS_KEY = "num_of_chunks"
 MSG_PEER_BEHIND_NAT_KEY = "peer_behind_nat"
 
+MSG_PEER_ID_KEY = "peer_id"
 MSG_SOURCE_IP_KEY = "source_ip"
 MSG_SOURCE_PORT_KEY = "source_port"
 MSG_FILES_KEY = "files"

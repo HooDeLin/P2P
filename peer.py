@@ -120,7 +120,7 @@ class Peer(Runner):
         return info
 
     def send_message_to_tracker(self, message, success_msg="", failure_msg="",
-                                should_exit=False):
+                                should_exit=False, reply_func=None):
         # Helper function whenever Peer needs to send a message to Tracker
         server_address = (self.tracker_address, self.tracker_port)
         sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -137,6 +137,8 @@ class Peer(Runner):
                 data += new_bytes
 
             received_data = json.loads(data)
+            if reply_func != None:
+                reply_func(received_data)
             if success_msg:
                 print(success_msg)
             sending_socket.close()
@@ -148,6 +150,11 @@ class Peer(Runner):
             if should_exit:
                 exit()
 
+    def get_peer_id(self, msg):
+        parsed = json.loads(msg)
+        ip = msg[MSG_PEER_ID_KEY].split(IP_PORT_DELIMITER)
+        self.external_ip = ip[0]
+
     def register_as_peer(self):
         # Informs the Tracker of the files and chunks that you are sharing
         # Does this by opening a socket to the Tracker and sending the data
@@ -157,7 +164,8 @@ class Peer(Runner):
             message=message,
             success_msg=REGISTER_PEER_SUCCESS_MESSAGE,
             failure_msg=REGISTER_PEER_FAILED_MESSAGE,
-            should_exit=True
+            should_exit=True,
+            reply_func=self.get_peer_id
         )
 
     def get_available_files(self):
@@ -332,11 +340,12 @@ class Peer(Runner):
         message[MSG_CHUNK_NUMBER_KEY] = chunk_number
         if self.hole_punch:
             message[MSG_RECEIVER_ADDRESS_KEY] = self.external_ip + IP_PORT_DELIMITER + str(self.external_port)
+        else:
+            message[MSG_RECEIVER_ADDRESS_KEY] = self.external_ip + IP_PORT_DELIMITER + str(self.port)
         message[MSG_OWNER_ADDRESS_KEY] = owner_address[0] + IP_PORT_DELIMITER + str(owner_address[1])
         self.send_message_to_tracker(message)
 
     def request_file_chunk_from_peer(self, owner_address, filename, file_download_process_id, chunk_number):
-        print("Requesting from " + str(owner_address))
         message = {}
         message[MESSAGE_TYPE_KEY] = REQUEST_FILE_CHUNK_MESSAGE_TYPE
         message[MSG_FILE_DOWNLOAD_PROCESS_ID_KEY] = file_download_process_id

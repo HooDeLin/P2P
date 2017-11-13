@@ -40,10 +40,12 @@ class Tracker(Runner):
         msg[MESSAGE_TYPE_KEY] = NOT_YET_IMPLEMENTED_MESSAGE_TYPE
         return json.dumps(msg)
 
-    def create_ack_reply(self):
+    def create_ack_reply(self, peer_id=None):
         # Format: {"message_type": "ACK"}
         msg = {}
         msg[MESSAGE_TYPE_KEY] = ACK_MESSAGE_TYPE
+        if peer_id == None:
+            msg[MSG_PEER_ID_KEY] = peer_id
         return json.dumps(msg)
 
     def create_list_of_files_reply(self):
@@ -57,7 +59,7 @@ class Tracker(Runner):
         if MSG_SOURCE_IP_KEY in msg:
             return msg[MSG_SOURCE_IP_KEY] + IP_PORT_DELIMITER + str(msg[MSG_SOURCE_PORT_KEY])
         else:
-            return addr[0] + IP_PORT_DELIMITER + str(addr[1])
+            return addr[0] + IP_PORT_DELIMITER + str(msg[MSG_SOURCE_PORT_KEY])
 
     def handle_inform_and_update_message(self, msg, addr):
         peer_id = self.get_peer_id_from_message(msg, addr)
@@ -89,7 +91,7 @@ class Tracker(Runner):
             else:
                 updated_file_chunk_owns = list(set(self.chunk_owners[file_name][peer_id] + peer_file_chunks[MSG_CHUNKS_KEY]))
                 self.chunk_owners[file_name][peer_id] = updated_file_chunk_owns
-        return
+        return peer_id
 
     def create_file_reply(self, file_name):
         if file_name not in self.file_details:
@@ -165,9 +167,9 @@ class Tracker(Runner):
             return self.create_not_yet_implemented_reply()
         if msg[MESSAGE_TYPE_KEY] == INFORM_AND_UPDATE_MESSAGE_TYPE:
             self.lock.acquire()
-            self.handle_inform_and_update_message(msg, addr)
+            peer_id = self.handle_inform_and_update_message(msg, addr)
             self.lock.release()
-            return self.create_ack_reply()
+            return self.create_ack_reply(peer_id=peer_id)
         elif msg[MESSAGE_TYPE_KEY] == QUERY_LIST_OF_FILES_MESSAGE_TYPE:
             return self.create_list_of_files_reply()
         elif msg[MESSAGE_TYPE_KEY] == QUERY_FILE_MESSAGE_TYPE:
