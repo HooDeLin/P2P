@@ -24,7 +24,7 @@ def print_received_data(data):
     print ('Received data: ' + str(data))
 
 def print_returning_data(data):
-    print ('Returning data: ' + str(return_data))
+    print ('Returning data: ' + str(data))
 
 def print_peer_stopping_message():
     print ("Stopping peer")
